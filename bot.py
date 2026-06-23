@@ -173,8 +173,13 @@ def post_to_slack(blocks: list):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        print(f"Slack error {e.code}: {body}")
+        raise
 
 
 def verify_url(url: str) -> bool:
@@ -215,7 +220,8 @@ def refresh_competitors() -> tuple[list, list]:
 
     try:
         clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
-        new_entries = json.loads(clean)
+        start = clean.index("[")
+        new_entries, _ = json.JSONDecoder().raw_decode(clean, start)
         if not isinstance(new_entries, list):
             new_entries = []
     except Exception:
@@ -312,22 +318,26 @@ Return ONLY valid JSON:
 
     try:
         clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
-        match = re.search(r'\{.*\}', clean, re.DOTALL)
-        if match:
-            data = json.loads(match.group())
-            all_items = data.get("just_opened", {}).get("items", []) + data.get("coming_soon", [])
-            for item in all_items:
-                if item.get("website") and not verify_url(item["website"]):
-                    item["website"] = ""
-                if item.get("instagram_url") and not verify_url(item["instagram_url"]):
-                    item["instagram_url"] = ""
-                    item["instagram_handle"] = ""
-                if item.get("cover_image_post") and not verify_url(item["cover_image_post"]):
-                    item["cover_image_post"] = ""
-            ugc = data.get("just_opened", {}).get("ugc", [])
-            if ugc:
-                data["just_opened"]["ugc"] = [u for u in ugc if verify_url(u.get("url", ""))]
-            return data
+        # Find the start of the JSON object and use raw_decode to stop at its end
+        start = clean.index("{")
+        data, _ = json.JSONDecoder().raw_decode(clean, start)
+        all_items = data.get("just_opened", {}).get("items", []) + data.get("coming_soon", [])
+        for item in all_items:
+            if item.get("website") and not verify_url(item["website"]):
+                item["website"] = ""
+            if item.get("instagram_url") and not verify_url(item["instagram_url"]):
+                item["instagram_url"] = ""
+                item["instagram_handle"] = ""
+            if item.get("cover_image_post") and not verify_url(item["cover_image_post"]):
+                item["cover_image_post"] = ""
+        ugc = data.get("just_opened", {}).get("ugc", [])
+        if ugc:
+            # Handle both dict {"url":..,"label":..} and plain string formats
+            data["just_opened"]["ugc"] = [
+                u for u in ugc
+                if isinstance(u, dict) and verify_url(u.get("url", ""))
+            ]
+        return data
     except Exception as e:
         print(f"Error parsing openings for {city}: {e}")
 
@@ -457,9 +467,9 @@ For each return: headline, detail (1 sentence), so_what (1 sentence on how it ap
 
     try:
         clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
-        match = re.search(r'\[.*\]', clean, re.DOTALL)
-        if match:
-            return json.loads(match.group())
+        start = clean.index("[")
+        data, _ = json.JSONDecoder().raw_decode(clean, start)
+        return data
     except Exception as e:
         print(f"Error parsing {section}: {e}")
 
@@ -481,6 +491,13 @@ def city_prefix(item: dict) -> str:
     return f"{tag} " if tag else ""
 
 
+def safe_link(url: str, label: str) -> str:
+    """Return a Slack mrkdwn link, stripping chars that break the <url|label> format."""
+    url = url.replace("<", "").replace(">", "").replace("|", "%7C")
+    label = label.replace("<", "").replace(">", "").replace("|", "-")
+    return f"<{url}|{label}>"
+
+
 def format_opening_item(item: dict) -> str:
     name = item.get("name", "")
     date = item.get("date", "")
@@ -491,7 +508,7 @@ def format_opening_item(item: dict) -> str:
     cover = item.get("cover_image_post", "")
 
     # Name line
-    name_str = f"*<{website}|{name}>*" if website else f"*{name}*"
+    name_str = f"*{safe_link(website, name)}*" if website else f"*{name}*"
     if date:
         name_str += f"  _{date}_"
 
@@ -501,11 +518,11 @@ def format_opening_item(item: dict) -> str:
 
     links = []
     if ig_handle and ig_url:
-        links.append(f"<{ig_url}|{ig_handle}>")
+        links.append(safe_link(ig_url, ig_handle))
     elif ig_handle:
         links.append(ig_handle)
     if cover:
-        links.append(f"<{cover}|📸 cover image candidate>")
+        links.append(safe_link(cover, "📸 cover image candidate"))
     if links:
         lines.append(" · ".join(links))
 
@@ -520,7 +537,7 @@ def format_news_items(items: list) -> str:
         detail = item.get("detail", "")
         so_what = item.get("so_what", "")
         url = item.get("url", "")
-        headline_str = f"*<{url}|{headline}>*" if url else f"*{headline}*"
+        headline_str = f"*{safe_link(url, headline)}*" if url else f"*{headline}*"
         lines.append(f"• {prefix}{headline_str}\n  {detail} _↳ {so_what}_")
     return "\n\n".join(lines)
 
@@ -580,7 +597,7 @@ def build_slack_blocks(
     all_ugc = nyc_data.get("ugc", []) + london_data.get("ugc", [])
     if all_ugc:
         ugc_lines = "\n".join(
-            f"  · <{u['url']}|{u['label']}>" for u in all_ugc[:6] if u.get("url")
+            f"  · {safe_link(u['url'], u['label'])}" for u in all_ugc[:6] if u.get("url")
         )
         blocks.append({
             "type": "section",
