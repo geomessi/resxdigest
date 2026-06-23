@@ -25,6 +25,7 @@ SLACK_WEBHOOK_URL = os.environ["SLACK_WEBHOOK_URL"]
 
 SEEN_OPENINGS_FILE = Path("data/seen_openings.json")
 COMPETITORS_FILE   = Path("data/competitors.json")
+WATCHING_FILE      = Path("data/watching.json")
 
 # ---------------------------------------------------------------------------
 # Signal accounts — used as vibe/trend calibration, NOT cited directly
@@ -232,58 +233,80 @@ def refresh_competitors() -> tuple[list, list]:
 # Step 2 — Research openings
 # ---------------------------------------------------------------------------
 
-def research_openings(city: str, seen: set) -> dict:
+def research_openings(city: str, seen: set, watching: list) -> dict:
+    """
+    Returns:
+      {
+        "just_opened": {"items": [...], "ugc": [...]},
+        "coming_soon": [...]
+      }
+    """
     seen_str = ", ".join(seen) if seen else "none yet"
     city_label = "NYC" if city == "nyc" else "London"
     sources = SOURCES[f"openings_{city}"]
     signal_accounts = NYC_SIGNAL_ACCOUNTS if city == "nyc" else LONDON_SIGNAL_ACCOUNTS
 
+    city_key = "NYC" if city == "nyc" else "LDN"
+    city_watching = [w for w in watching if w.get("city", "").upper() in (city_key, "BOTH")]
+    watching_str = ", ".join(w["name"] for w in city_watching) if city_watching else "none"
+
     prompt = f"""
-You are researching new restaurant openings in {city_label} for a weekly digest aimed at the team 
+You are researching restaurant openings in {city_label} for a weekly digest aimed at the team
 at ResX — a last-minute restaurant reservation marketplace for 25-35 year olds in NYC and London.
 
 Use these sources: {', '.join(sources)}
 
-As a vibe calibration, the target audience is similar to followers of these accounts 
+As a vibe calibration, the target audience is similar to followers of these accounts
 (use as signal only, do NOT cite them): {', '.join(signal_accounts)}
 
-Find the 3 most notable NEW restaurant openings from the past week.
-EXCLUDE these already featured: {seen_str}
+Currently watching (announced but not yet open as of last run): {watching_str}
+If any of these have now opened, include them in JUST OPENED.
 
-For each restaurant return:
+Return TWO lists:
+
+1. JUST OPENED: Up to 3 restaurants that actually opened THIS WEEK (verifiably open, taking reservations or walk-ins).
+   EXCLUDE already seen: {seen_str}
+
+2. COMING SOON: Up to 3 noteworthy restaurants announced for an upcoming opening (not yet open).
+   These will be tracked week-to-week until they open.
+
+For each restaurant in BOTH lists return:
 - name: restaurant name
-- date: opening date (e.g. "June 18" or "opens June 29")  
-- blurb: 1 punchy sentence — vibe, concept, what makes it notable. No reservation logistics.
-- website: ONLY include if you can confirm the URL actually resolves. Leave blank if unsure.
-- instagram_handle: e.g. @restaurantname — only if you can confirm it exists
+- date: opening date (e.g. "June 18") or "opens [date]" for coming soon
+- blurb: 1 punchy sentence — vibe, concept, what makes it notable
+- city: "{city_key}"
+- website: only if you can confirm the URL resolves. Leave blank if unsure.
+- instagram_handle: e.g. @restaurantname — only if confirmed
 - instagram_url: full Instagram profile URL — only if confirmed
-- cover_image_post: URL to a specific Instagram POST (not profile) with great food or vibe photo 
-  we could DM them about for a cover image. Only include if you found a real, specific post URL.
+- cover_image_post: URL to a specific Instagram POST with great food/vibe photo — only if confirmed
 
-Also find 3-5 UGC posts (Instagram reels or TikToks) about these openings from food creators 
-(not the restaurant's own account). Only include URLs you've actually found and confirmed exist.
+For JUST OPENED also find 3-5 UGC posts (Instagram reels or TikToks) from food creators
+(not the restaurant's own account). Only include URLs you've confirmed exist.
 
 Return ONLY valid JSON:
 {{
-  "items": [
+  "just_opened": {{
+    "items": [
+      {{
+        "name": "...", "date": "...", "blurb": "...", "city": "...",
+        "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
+      }}
+    ],
+    "ugc": ["url1", "url2"]
+  }},
+  "coming_soon": [
     {{
-      "name": "...",
-      "date": "...",
-      "blurb": "...",
-      "website": "...",
-      "instagram_handle": "...",
-      "instagram_url": "...",
-      "cover_image_post": "..."
+      "name": "...", "date": "...", "blurb": "...", "city": "...",
+      "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
     }}
-  ],
-  "ugc": ["url1", "url2"]
+  ]
 }}
 """
 
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system="You are a food media researcher. Only include URLs you have actually verified exist. Return only valid JSON, no markdown.",
-        max_tokens=2000,
+        max_tokens=2500,
     )
 
     try:
@@ -291,8 +314,8 @@ Return ONLY valid JSON:
         match = re.search(r'\{.*\}', clean, re.DOTALL)
         if match:
             data = json.loads(match.group())
-            # Verify URLs before returning
-            for item in data.get("items", []):
+            all_items = data.get("just_opened", {}).get("items", []) + data.get("coming_soon", [])
+            for item in all_items:
                 if item.get("website") and not verify_url(item["website"]):
                     item["website"] = ""
                 if item.get("instagram_url") and not verify_url(item["instagram_url"]):
@@ -300,12 +323,14 @@ Return ONLY valid JSON:
                     item["instagram_handle"] = ""
                 if item.get("cover_image_post") and not verify_url(item["cover_image_post"]):
                     item["cover_image_post"] = ""
-            data["ugc"] = [u for u in data.get("ugc", []) if verify_url(u)]
+            ugc = data.get("just_opened", {}).get("ugc", [])
+            if ugc:
+                data["just_opened"]["ugc"] = [u for u in ugc if verify_url(u)]
             return data
     except Exception as e:
         print(f"Error parsing openings for {city}: {e}")
 
-    return {"items": [], "ugc": []}
+    return {"just_opened": {"items": [], "ugc": []}, "coming_soon": []}
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +527,7 @@ def build_slack_blocks(
     date_str: str,
     nyc_data: dict,
     london_data: dict,
+    watching: list,
     hospitality: list,
     industry: list,
     landscape: list,
@@ -556,6 +582,36 @@ def build_slack_blocks(
         })
 
     blocks.append({"type": "divider"})
+
+    # ── 🔭 Watching ─────────────────────────────────────────────────────────
+    if watching:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*🔭  WATCHING*"},
+        })
+        nyc_watch = [w for w in watching if w.get("city", "").upper() in ("NYC", "BOTH")]
+        ldn_watch  = [w for w in watching if w.get("city", "").upper() in ("LDN", "BOTH")]
+        if nyc_watch:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
+            })
+            for item in nyc_watch:
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": format_opening_item(item)},
+                })
+        if ldn_watch:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
+            })
+            for item in ldn_watch:
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": format_opening_item(item)},
+                })
+        blocks.append({"type": "divider"})
 
     # ── 2. Hospitality ──────────────────────────────────────────────────────
     if hospitality:
@@ -631,15 +687,35 @@ def main():
     print(f"Running ResX News Bot — {today}")
 
     seen_openings = set(load_json(SEEN_OPENINGS_FILE, []))
+    watching = load_json(WATCHING_FILE, [])
 
     print("Refreshing competitor list...")
     competitors, new_competitors = refresh_competitors()
 
     print("Researching NYC openings...")
-    nyc_data = research_openings("nyc", seen_openings)
+    nyc_result = research_openings("nyc", seen_openings, watching)
 
     print("Researching London openings...")
-    london_data = research_openings("london", seen_openings)
+    london_result = research_openings("london", seen_openings, watching)
+
+    nyc_data   = nyc_result.get("just_opened", {"items": [], "ugc": []})
+    london_data = london_result.get("just_opened", {"items": [], "ugc": []})
+
+    # Graduate watching items that have now opened
+    opened_names = {
+        i["name"].lower()
+        for i in nyc_data.get("items", []) + london_data.get("items", [])
+    }
+    watching = [w for w in watching if w["name"].lower() not in opened_names]
+
+    # Merge new coming_soon items (deduplicated by name)
+    watching_names = {w["name"].lower() for w in watching}
+    for item in nyc_result.get("coming_soon", []) + london_result.get("coming_soon", []):
+        if item["name"].lower() not in watching_names:
+            watching.append(item)
+            watching_names.add(item["name"].lower())
+
+    save_json(WATCHING_FILE, watching)
 
     print("Researching hospitality...")
     hospitality = research_section("hospitality")
@@ -672,6 +748,7 @@ def main():
         date_str=today,
         nyc_data=nyc_data,
         london_data=london_data,
+        watching=watching,
         hospitality=hospitality,
         industry=industry,
         landscape=landscape,
