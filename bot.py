@@ -281,7 +281,8 @@ For each restaurant in BOTH lists return:
 - cover_image_post: URL to a specific Instagram POST with great food/vibe photo — only if confirmed
 
 For JUST OPENED also find 3-5 UGC posts (Instagram reels or TikToks) from food creators
-(not the restaurant's own account). Only include URLs you've confirmed exist.
+(not the restaurant's own account). For each include the URL and a short label — creator handle
+plus what it shows, e.g. "@foodie_nyc reviews the tasting menu". Only include URLs you've confirmed exist.
 
 Return ONLY valid JSON:
 {{
@@ -292,7 +293,7 @@ Return ONLY valid JSON:
         "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
       }}
     ],
-    "ugc": ["url1", "url2"]
+    "ugc": [{{"url": "...", "label": "..."}}]
   }},
   "coming_soon": [
     {{
@@ -325,7 +326,7 @@ Return ONLY valid JSON:
                     item["cover_image_post"] = ""
             ugc = data.get("just_opened", {}).get("ugc", [])
             if ugc:
-                data["just_opened"]["ugc"] = [u for u in ugc if verify_url(u)]
+                data["just_opened"]["ugc"] = [u for u in ugc if verify_url(u.get("url", ""))]
             return data
     except Exception as e:
         print(f"Error parsing openings for {city}: {e}")
@@ -354,7 +355,7 @@ Also search for: restaurant reservation regulation news, reservation bot crackdo
 new reservation-adjacent features from Google/Apple Maps, dining trend shifts.
 
 Find 2-3 most relevant items. {city_label_instruction}
-For each return: headline, detail (1-2 sentences), so_what (1 sentence why it matters for ResX), city.
+For each return: headline, detail (1 sentence), so_what (1 sentence why it matters for ResX), url (direct article link if available), city.
 """
 
     elif section == "hospitality":
@@ -370,7 +371,7 @@ Look for: chef moves, brand x restaurant collabs, notable closures, food media m
 industry gossip, chef/restaurant cultural moments. Prioritize NYC and London.
 
 Find 2-3 items. {city_label_instruction}
-For each return: headline, detail (1-2 sentences), so_what (1 sentence), city.
+For each return: headline, detail (1 sentence), so_what (1 sentence), url (direct article link if available), city.
 """
 
     elif section == "industry":
@@ -382,7 +383,7 @@ Look for: M&A in hospitality tech, platform updates (OpenTable, Resy, SevenRooms
 restaurant industry business news, funding rounds, policy changes affecting restaurants.
 
 Find 2-3 items. {city_label_instruction}
-For each return: headline, detail (1-2 sentences), so_what (1 sentence for ResX), city.
+For each return: headline, detail (1 sentence), so_what (1 sentence for ResX), url (direct article link if available), city.
 """
 
     elif section == "city_pulse":
@@ -406,7 +407,7 @@ Think: gaming clubs having a moment, a film everyone's talking about that ties t
 a neighbourhood suddenly having energy, a behaviour shift in how people are going out.
 
 Find 2 NYC items and 2 London items. {city_label_instruction}
-For each return: headline, detail (1-2 sentences), so_what (1 sentence connecting to ResX's world), city.
+For each return: headline, detail (1 sentence), so_what (1 sentence connecting to ResX's world), url (direct article link if available), city.
 """
 
     elif section == "specials":
@@ -425,8 +426,7 @@ You are looking SPECIFICALLY for:
 NOT interested in: general prix-fixe deals, restaurant week, generic seasonal menus without a story.
 
 Find 2-3 items across NYC and London. {city_label_instruction}
-For each return: headline (punchy, include the dish/collab name), detail (1-2 sentences including 
-dates available and what makes it special), so_what (1 sentence on social/content angle for ResX), city.
+For each return: headline (punchy, include the dish/collab name), detail (1 sentence including dates and what makes it special), so_what (1 sentence on social/content angle for ResX), url (direct link if available), city.
 """
 
     elif section == "ai_tech":
@@ -440,7 +440,7 @@ a React Native + Node/TypeScript + Firebase stack. Include only things with real
 practical relevance — not hype.
 
 Find 2-3 items. City field should always be 'BOTH' for AI/Tech.
-For each return: headline, detail (1-2 sentences), so_what (1 sentence on how it applies), city.
+For each return: headline, detail (1 sentence), so_what (1 sentence on how it applies), url (direct link if available), city.
 """
     else:
         return []
@@ -450,7 +450,7 @@ For each return: headline, detail (1-2 sentences), so_what (1 sentence on how it
         system=(
             "You are a sharp analyst writing for a small startup team. "
             "Be punchy and specific. Return only a valid JSON array of objects with keys: "
-            "headline, detail, so_what, city. No markdown fences."
+            "headline, detail, so_what, url, city. No markdown fences."
         ),
         max_tokens=1500,
     )
@@ -519,7 +519,9 @@ def format_news_items(items: list) -> str:
         headline = item.get("headline", "")
         detail = item.get("detail", "")
         so_what = item.get("so_what", "")
-        lines.append(f"• {prefix}*{headline}*\n  {detail}\n  _↳ {so_what}_")
+        url = item.get("url", "")
+        headline_str = f"*<{url}|{headline}>*" if url else f"*{headline}*"
+        lines.append(f"• {prefix}{headline_str}\n  {detail} _↳ {so_what}_")
     return "\n\n".join(lines)
 
 
@@ -552,33 +554,37 @@ def build_slack_blocks(
         "text": {"type": "mrkdwn", "text": "*📍  NEW OPENINGS*"},
     })
 
-    blocks.append({
-        "type": "section",
-        "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
-    })
-    for item in nyc_data.get("items", []):
+    if nyc_data.get("items"):
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": format_opening_item(item)},
+            "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
         })
+        for item in nyc_data["items"]:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": format_opening_item(item)},
+            })
 
-    blocks.append({
-        "type": "section",
-        "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
-    })
-    for item in london_data.get("items", []):
+    if london_data.get("items"):
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": format_opening_item(item)},
+            "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
         })
+        for item in london_data["items"]:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": format_opening_item(item)},
+            })
 
     # UGC
     all_ugc = nyc_data.get("ugc", []) + london_data.get("ugc", [])
     if all_ugc:
-        ugc_links = "  ·  ".join(f"<{u}|[post]>" for u in all_ugc[:6])
+        ugc_lines = "\n".join(
+            f"  · <{u['url']}|{u['label']}>" for u in all_ugc[:6] if u.get("url")
+        )
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": f"*📲  UGC to repost:*  {ugc_links}"},
+            "text": {"type": "mrkdwn", "text": f"*📲  UGC to repost:*\n{ugc_lines}"},
         })
 
     blocks.append({"type": "divider"})
@@ -671,7 +677,7 @@ def build_slack_blocks(
         "type": "context",
         "elements": [{
             "type": "mrkdwn",
-            "text": "ResX News Bot  ·  Powered by Claude  ·  Mon / Wed / Fri",
+            "text": "ResX News Bot  ·  Powered by Claude  ·  Mon / Fri",
         }],
     })
 
