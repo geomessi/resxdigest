@@ -279,7 +279,7 @@ Return TWO lists:
 For each restaurant in BOTH lists return:
 - name: restaurant name
 - date: opening date (e.g. "June 18") or "opens [date]" for coming soon
-- blurb: 1 punchy sentence — vibe, concept, what makes it notable
+- blurb: 1 punchy sentence, max 12 words — vibe, concept, what makes it notable
 - city: "{city_key}"
 - website: only if you can confirm the URL resolves. Leave blank if unsure.
 - instagram_handle: e.g. @restaurantname — only if confirmed
@@ -365,7 +365,7 @@ Also search for: restaurant reservation regulation news, reservation bot crackdo
 new reservation-adjacent features from Google/Apple Maps, dining trend shifts.
 
 Find 2-3 most relevant items. {city_label_instruction}
-For each return: headline, detail (1 sentence), so_what (1 sentence why it matters for ResX), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words, why it matters for ResX), url (direct article link if available), city.
 """
 
     elif section == "hospitality":
@@ -381,7 +381,7 @@ Look for: chef moves, brand x restaurant collabs, notable closures, food media m
 industry gossip, chef/restaurant cultural moments. Prioritize NYC and London.
 
 Find 2-3 items. {city_label_instruction}
-For each return: headline, detail (1 sentence), so_what (1 sentence), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words), url (direct article link if available), city.
 """
 
     elif section == "industry":
@@ -393,7 +393,7 @@ Look for: M&A in hospitality tech, platform updates (OpenTable, Resy, SevenRooms
 restaurant industry business news, funding rounds, policy changes affecting restaurants.
 
 Find 2-3 items. {city_label_instruction}
-For each return: headline, detail (1 sentence), so_what (1 sentence for ResX), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words, why it matters for ResX), url (direct article link if available), city.
 """
 
     elif section == "city_pulse":
@@ -417,7 +417,7 @@ Think: gaming clubs having a moment, a film everyone's talking about that ties t
 a neighbourhood suddenly having energy, a behaviour shift in how people are going out.
 
 Find 2 NYC items and 2 London items. {city_label_instruction}
-For each return: headline, detail (1 sentence), so_what (1 sentence connecting to ResX's world), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words), url (direct article link if available), city.
 """
 
     elif section == "specials":
@@ -436,7 +436,7 @@ You are looking SPECIFICALLY for:
 NOT interested in: general prix-fixe deals, restaurant week, generic seasonal menus without a story.
 
 Find 2-3 items across NYC and London. {city_label_instruction}
-For each return: headline (punchy, include the dish/collab name), detail (1 sentence including dates and what makes it special), so_what (1 sentence on social/content angle for ResX), url (direct link if available), city.
+For each return: headline (punchy, include dish/collab name, max 8 words), detail (max 12 words including dates), so_what (max 10 words, social/content angle for ResX), url (direct link if available), city.
 """
 
     elif section == "ai_tech":
@@ -450,7 +450,7 @@ a React Native + Node/TypeScript + Firebase stack. Include only things with real
 practical relevance — not hype.
 
 Find 2-3 items. City field should always be 'BOTH' for AI/Tech.
-For each return: headline, detail (1 sentence), so_what (1 sentence on how it applies), url (direct link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words on how it applies), url (direct link if available), city.
 """
     else:
         return []
@@ -481,14 +481,13 @@ For each return: headline, detail (1 sentence), so_what (1 sentence on how it ap
 # ---------------------------------------------------------------------------
 
 CITY_TAG = {
-    "NYC": "[NYC]",
-    "LDN": "[LDN]",
+    "NYC": "NYC",
+    "LDN": "LDN",
     "BOTH": "",
 }
 
-def city_prefix(item: dict) -> str:
-    tag = CITY_TAG.get(item.get("city", "BOTH"), "")
-    return f"{tag} " if tag else ""
+def city_tag(item: dict) -> str:
+    return CITY_TAG.get(item.get("city", "BOTH"), "")
 
 
 def safe_link(url: str, label: str) -> str:
@@ -512,24 +511,19 @@ def format_opening_item(item: dict) -> str:
     ig_url = item.get("instagram_url", "")
     cover = item.get("cover_image_post", "")
 
-    # Name line
     name_str = f"*{safe_link(website, name)}*" if website else f"*{name}*"
     if date:
         name_str += f"  _{date}_"
+    if ig_handle and ig_url:
+        name_str += f"  ·  {safe_link(ig_url, ig_handle)}"
+    elif ig_handle:
+        name_str += f"  ·  {ig_handle}"
+    if cover:
+        name_str += f"  ·  {safe_link(cover, 'cover image')}"
 
-    lines = [f"▪️ {name_str}"]
+    lines = [name_str]
     if blurb:
         lines.append(blurb)
-
-    links = []
-    if ig_handle and ig_url:
-        links.append(safe_link(ig_url, ig_handle))
-    elif ig_handle:
-        links.append(ig_handle)
-    if cover:
-        links.append(safe_link(cover, "📸 cover image candidate"))
-    if links:
-        lines.append(" · ".join(links))
 
     return "\n".join(lines)
 
@@ -537,13 +531,14 @@ def format_opening_item(item: dict) -> str:
 def format_news_items(items: list) -> str:
     lines = []
     for item in items:
-        prefix = city_prefix(item)
+        tag = city_tag(item)
         headline = item.get("headline", "")
         detail = item.get("detail", "")
         so_what = item.get("so_what", "")
         url = item.get("url", "")
         headline_str = f"*{safe_link(url, headline)}*" if url else f"*{headline}*"
-        lines.append(f"• {prefix}{headline_str}\n  {detail} _↳ {so_what}_")
+        tag_str = f"  _{tag}_" if tag else ""
+        lines.append(f"• {headline_str}{tag_str}\n  {detail} _{so_what}_")
     return "\n\n".join(lines)
 
 
@@ -566,7 +561,7 @@ def build_slack_blocks(
     # Header
     blocks.append({
         "type": "header",
-        "text": {"type": "plain_text", "text": f"🍽️  ResX Weekly Brief  ·  {date_str}"},
+        "text": {"type": "plain_text", "text": f"ResX Digest  ·  {date_str}"},
     })
     blocks.append({"type": "divider"})
 
@@ -606,7 +601,7 @@ def build_slack_blocks(
         )
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": f"*📲  UGC to repost:*\n{ugc_lines}"},
+            "text": {"type": "mrkdwn", "text": f"*UGC to repost:*\n{ugc_lines}"},
         })
 
     blocks.append({"type": "divider"})
@@ -662,7 +657,7 @@ def build_slack_blocks(
         landscape_text = format_news_items(landscape) if landscape else ""
         if new_competitors:
             comp_str = ", ".join(new_competitors)
-            new_comp_block = f"\n\n👀 *New competitor spotted:* {comp_str}"
+            new_comp_block = f"\n\n*New competitor spotted:* {comp_str}"
             landscape_text = (landscape_text + new_comp_block).strip()
         if landscape_text:
             blocks.append({
