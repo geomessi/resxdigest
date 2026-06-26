@@ -284,7 +284,10 @@ For each restaurant in BOTH lists return:
 - website: only if you can confirm the URL resolves. Leave blank if unsure.
 - instagram_handle: official Instagram handle e.g. @restaurantname — search for it, required
 - instagram_url: full official Instagram profile URL — required, search for it (e.g. https://www.instagram.com/restaurantname)
-- cover_image_post: URL to a UGC post from an influencer or regular person (NOT the restaurant's own account) that showcases the food or vibe — Instagram reel, TikTok, or post. Must be a real person's account. Only include if you've confirmed the URL exists.
+- cover_image_post: Required for every item. URL to a UGC post from a real person — a food creator, influencer, or regular diner (NOT the restaurant's own account). Should show actual food or atmosphere, something visually compelling and delicious. Instagram reel, TikTok, or post. Search hard for this. Only include if you've confirmed the URL resolves.
+
+For COMING SOON items also return:
+- source_url: URL to the article or announcement that confirms this opening and its date — required. Only include if you've confirmed it resolves.
 
 For JUST OPENED also find 3-5 UGC posts (Instagram reels or TikToks) from food creators
 (not the restaurant's own account). For each include the URL and a short label — creator handle
@@ -304,7 +307,7 @@ Return ONLY valid JSON:
   "coming_soon": [
     {{
       "name": "...", "date": "...", "blurb": "...", "city": "...",
-      "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
+      "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "...", "source_url": "..."
     }}
   ]
 }}
@@ -330,6 +333,8 @@ Return ONLY valid JSON:
                 item["instagram_handle"] = ""
             if item.get("cover_image_post") and not verify_url(item["cover_image_post"]):
                 item["cover_image_post"] = ""
+            if item.get("source_url") and not verify_url(item["source_url"]):
+                item["source_url"] = ""
         ugc = data.get("just_opened", {}).get("ugc", [])
         if ugc:
             # Handle both dict {"url":..,"label":..} and plain string formats
@@ -348,12 +353,25 @@ Return ONLY valid JSON:
 # Step 3 — Research news sections
 # ---------------------------------------------------------------------------
 
-def research_section(section: str, competitors: list = None) -> list:
+def research_section(section: str, competitors: list = None, exclude: list = None) -> list:
     """Returns list of dicts: {headline, detail, so_what, city}"""
 
     city_label_instruction = (
         "For each item, also include a 'city' field: either 'NYC', 'LDN', or 'BOTH'."
     )
+
+    exclude_instruction = ""
+    if exclude:
+        already_used = "\n".join(
+            f"- {item.get('headline', '')} ({item.get('url', 'no url')})"
+            for item in exclude
+            if item.get("headline")
+        )
+        exclude_instruction = (
+            f"\n\nIMPORTANT: The following stories have already appeared earlier in this digest — "
+            f"do NOT include them or any article covering the same news:\n{already_used}\n"
+            f"Find different stories that do not duplicate any of the above."
+        )
 
     if section == "landscape":
         comp_str = ", ".join(competitors or SEED_COMPETITORS)
@@ -455,6 +473,9 @@ For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 
     else:
         return []
 
+    if exclude_instruction:
+        prompt = prompt.rstrip() + exclude_instruction
+
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
@@ -510,10 +531,12 @@ def format_opening_item(item: dict) -> str:
     ig_handle = item.get("instagram_handle", "")
     ig_url = item.get("instagram_url", "")
     cover = item.get("cover_image_post", "")
+    source_url = item.get("source_url", "")
 
     name_str = f"*{safe_link(website, name)}*" if website else f"*{name}*"
     if date:
-        name_str += f"  _{date}_"
+        date_str = safe_link(source_url, date) if source_url else date
+        name_str += f"  _{date_str}_"
     if ig_handle and ig_url:
         name_str += f"  ·  {safe_link(ig_url, ig_handle)}"
     elif ig_handle:
@@ -742,21 +765,26 @@ def main():
 
     print("Researching hospitality...")
     hospitality = research_section("hospitality")
+    used = list(hospitality)
 
     print("Researching industry...")
-    industry = research_section("industry")
+    industry = research_section("industry", exclude=used)
+    used += industry
 
     print("Researching landscape...")
-    landscape = research_section("landscape", competitors)
+    landscape = research_section("landscape", competitors, exclude=used)
+    used += landscape
 
     print("Researching city pulse...")
-    city_pulse = research_section("city_pulse")
+    city_pulse = research_section("city_pulse", exclude=used)
+    used += city_pulse
 
     print("Researching specials & collabs...")
-    specials = research_section("specials")
+    specials = research_section("specials", exclude=used)
+    used += specials
 
     print("Researching AI & tech...")
-    ai_tech = research_section("ai_tech")
+    ai_tech = research_section("ai_tech", exclude=used)
 
     # Update seen openings
     new_names = (
