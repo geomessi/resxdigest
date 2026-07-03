@@ -100,48 +100,57 @@ def research_ugc(seen_urls: set) -> list:
     signal = ", ".join(NYC_SIGNAL_ACCOUNTS + LONDON_SIGNAL_ACCOUNTS)
 
     prompt = f"""
-You are curating daily social content for ResX — a last-minute restaurant reservation app
-for 25-35 year olds in NYC and London. This goes to the internal team's #social channel
-so they know what's trending and what to repost.
+You are a social media strategist for ResX — a last-minute restaurant reservation app for
+25-35 year olds in NYC and London. Each morning you send the team a list of specific,
+actionable social opportunities for that day.
 
 Target audience vibe (use as calibration only, do NOT cite): {signal}
 
-Search for the most timely, shareable, culturally relevant content from the past 24-48 hours
-across NYC and London. Cast a wide net — this is NOT just food content. Think:
+Search for timely content from the past 24-48 hours. For each item you find, your job is not
+just to surface it — but to tell the team exactly what to DO with it.
 
-- Viral or quirky NYC/London moments (e.g. a couple going viral for climbing the Empire State
-  Building, a street performer blowing up, a bizarre local news story everyone's sharing)
-- Celebrity or cultural figure spotted at a restaurant or out in the city
-- Food and drink collabs generating buzz (brand x brand, chef x restaurant, etc.)
-- Pop culture gossip tied to NYC or London (film premieres, fashion moments, artist sightings)
-- Trending songs or artists with a NYC/London connection people are talking about
-- New social trends or behaviours the going-out audience is doing right now
-- Visually stunning or surprising food/drink content worth reposting
-- Anything the 25-35 going-out crowd in NYC or London is actively sharing or talking about TODAY
+Look for:
+- A trending audio or song the team could use over a dining/going-out reel — link to the
+  specific audio, name the song and artist, explain what kind of content it suits
+- A viral moment in NYC or London the team could engage with or riff on
+  (e.g. a couple going viral, a wild local story, a meme format taking over)
+- A specific UGC post (reel or TikTok) from a food creator that is worth reposting —
+  link to the exact post, not just the account
+- A food or drink collab, pop-up, or moment generating buzz that ResX could comment on,
+  reshare, or tie to a booking prompt
+- A pop culture or celebrity moment (sighting, collab, event) the team could tie to a
+  restaurant or going-out angle
+- A seasonal or weather-driven trend to capitalise on with specific content ideas
+  (e.g. it's a heatwave → frozen cocktail content, ice cream spots, rooftop bookings)
 
-Find 5-7 items. Mix of NYC and London. Prioritise things that feel timely and surprising —
-not generic lifestyle content. Each item should feel like something you'd text a friend.
+Be specific. "Use Charli XCX's [exact song] audio (link) over a Friday night booking reel"
+is good. "@charliXCX" is useless. "NBC NY posted a round-up of July 4th ice cream specials
+(link) — repost with 'beat the heat, book a table'" is good. "NBC New York" is useless.
+
+Find 5-7 items. Mix of NYC and London.
 
 For each return:
-- handle: Instagram or TikTok handle of the creator/source (e.g. @username)
-- label: one punchy factual sentence on what it is and why it's shareable (max 12 words)
-- url: direct link to the post, reel, or article
+- content: what specifically it is (name the song/post/moment/trend — be exact)
+- action: one specific suggested action for the ResX team (max 15 words)
+- url: direct link to the specific post, audio, reel, or article
 - city: "NYC", "LDN", or "BOTH"
+- why_now: one line on timing or context (max 10 words)
 
 Do NOT include any of these URLs which have already been sent:
 {seen_str}
 
 Return ONLY a valid JSON array:
 [
-  {{"handle": "...", "label": "...", "url": "...", "city": "..."}}
+  {{"content": "...", "action": "...", "url": "...", "city": "...", "why_now": "..."}}
 ]
 """
 
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
-            "You are a culturally plugged-in social media curator. "
-            "Find real, verifiable, timely content — specific and surprising, not generic. "
+            "You are a culturally plugged-in social media strategist. "
+            "Every suggestion must be specific and immediately actionable — name exact songs, "
+            "link to exact posts, suggest exact copy directions. No generic accounts or vague trends. "
             "Return only a valid JSON array, no markdown."
         ),
     )
@@ -159,33 +168,44 @@ Return ONLY a valid JSON array:
 def build_slack_blocks(date_str: str, items: list) -> list:
     city_tag = {"NYC": " _NYC_", "LDN": " _LDN_", "BOTH": ""}
 
-    lines = []
-    for item in items:
-        handle = item.get("handle", "")
-        label  = item.get("label", "")
-        url    = item.get("url", "")
-        tag    = city_tag.get(item.get("city", "BOTH"), "")
-        if url:
-            lines.append(f"• {safe_link(url, handle)}{tag}  {label}")
-        else:
-            lines.append(f"• {handle}{tag}  {label}")
-
-    body = "\n".join(lines) if lines else "_No UGC found today._"
-
-    return [
+    blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": f"📱  UGC to Repost  ·  {date_str}"},
-        },
-        {
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": body},
-        },
-        {
-            "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "ResX Social Bot  ·  Powered by Claude  ·  Daily"}],
-        },
+            "text": {"type": "plain_text", "text": f"📱  Social Opportunities  ·  {date_str}"},
+        }
     ]
+
+    for item in items:
+        content  = item.get("content", "")
+        action   = item.get("action", "")
+        url      = item.get("url", "")
+        why_now  = item.get("why_now", "")
+        tag      = city_tag.get(item.get("city", "BOTH"), "")
+
+        content_str = safe_link(url, content) if url else content
+        lines = [f"*{content_str}*{tag}"]
+        if action:
+            lines.append(f"→ {action}")
+        if why_now:
+            lines.append(f"_{why_now}_")
+
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "\n".join(lines)},
+        })
+
+    if not items:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "_No social opportunities found today._"},
+        })
+
+    blocks.append({
+        "type": "context",
+        "elements": [{"type": "mrkdwn", "text": "ResX Social Bot  ·  Powered by Claude  ·  Daily"}],
+    })
+
+    return blocks
 
 
 def main():
