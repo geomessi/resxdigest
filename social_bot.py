@@ -135,7 +135,8 @@ For each return:
   cool girl energy, like a friend texting a tip. e.g. "repost with 'your sign to book tonight'"
   or "use this audio over empty-table-to-full-room b-roll" or "comment 'table for 2?' on this".
   Max 15 words. No marketing speak.
-- url: direct link to the specific post, audio, reel, or article
+- url: direct link to the Instagram post, TikTok, or Reel — prioritise social links over articles.
+  If you only have an article, include it, but always search for the original IG/TikTok post first.
 - city: "NYC", "LDN", or "BOTH"
 - why_now: one line on timing or cultural context, lowercase, max 8 words
 
