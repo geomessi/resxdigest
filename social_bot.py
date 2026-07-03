@@ -131,10 +131,13 @@ Find 5-7 items. Mix of NYC and London.
 
 For each return:
 - content: what specifically it is (name the song/post/moment/trend — be exact)
-- action: one specific suggested action for the ResX team (max 15 words)
+- action: one specific caption direction or action in ResX brand voice — insider, lowercase,
+  cool girl energy, like a friend texting a tip. e.g. "repost with 'your sign to book tonight'"
+  or "use this audio over empty-table-to-full-room b-roll" or "comment 'table for 2?' on this".
+  Max 15 words. No marketing speak.
 - url: direct link to the specific post, audio, reel, or article
 - city: "NYC", "LDN", or "BOTH"
-- why_now: one line on timing or context (max 10 words)
+- why_now: one line on timing or cultural context, lowercase, max 8 words
 
 Do NOT include any of these URLs which have already been sent:
 {seen_str}
@@ -148,9 +151,16 @@ Return ONLY a valid JSON array:
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
-            "You are a culturally plugged-in social media strategist. "
+            "You are a culturally plugged-in social media strategist writing for ResX — "
+            "a NYC and London restaurant reservation app. The brand voice is: insider, cool girl, "
+            "effortlessly elegant, the friend you want at every dinner party. Moody aesthetic. "
+            "Lowercase. Specific cultural references. Never try-hard. Never corporate. "
+            "Think: 'where the cast of The Bear would eat' or 'your sign to book tonight' or "
+            "'spots serving the Knicks energy'. Action copy should sound like a cool friend "
+            "texting you a tip, not a marketing brief. "
             "Every suggestion must be specific and immediately actionable — name exact songs, "
-            "link to exact posts, suggest exact copy directions. No generic accounts or vague trends. "
+            "link to exact posts, suggest exact copy or caption directions. "
+            "No generic accounts, no vague trends, no AI-sounding phrases. "
             "Return only a valid JSON array, no markdown."
         ),
     )
