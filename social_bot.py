@@ -106,8 +106,10 @@ actionable social opportunities for that day.
 
 Target audience vibe (use as calibration only, do NOT cite): {signal}
 
-Search for timely content from the past 24-48 hours. For each item you find, your job is not
-just to surface it — but to tell the team exactly what to DO with it.
+Today is {datetime.date.today().strftime("%A, %B %d, %Y")}. Search for content from the last
+24 hours only — posted or going viral today or since yesterday. Nothing older. Every item must
+be fresh to today's date. For each item you find, your job is not just to surface it — but to
+tell the team exactly what to DO with it.
 
 Look for:
 - A trending audio or song the team could use over a dining/going-out reel — link to the
