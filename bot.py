@@ -335,6 +335,7 @@ Return TWO lists:
 
 1. JUST OPENED: Up to 3 restaurants that actually opened THIS WEEK (verifiably open, taking reservations or walk-ins).
    EXCLUDE already seen: {seen_str}
+   Also exclude these restaurants which are tracked separately on the watching list — do NOT independently discover them as new openings. They will only appear if you are graduating them from the watching list above: {watching_str}
 
 2. COMING SOON: Up to 3 noteworthy restaurants announced for an upcoming opening (not yet open).
    These will be tracked week-to-week until they open.
@@ -344,10 +345,10 @@ For each restaurant in BOTH lists return:
 - date: opening date (e.g. "June 18") or "opens [date]" for coming soon
 - blurb: 1 punchy sentence, max 12 words — vibe, concept, what makes it notable
 - city: "{city_key}"
-- website: only if you can confirm the URL resolves. Leave blank if unsure.
+- website: search for the official website — try "[name].com", "[name].co.uk", and "site:[name] official". Only include if the URL resolves. Leave blank if nothing confirmed.
 - instagram_handle: official Instagram handle e.g. @restaurantname — search for it, required
 - instagram_url: full official Instagram profile URL — required, search for it (e.g. https://www.instagram.com/restaurantname)
-- cover_image_post: Required for every item. URL to a UGC post from a real person — a food creator, influencer, or regular diner (NOT the restaurant's own account). Should show actual food or atmosphere, something visually compelling and delicious. Instagram reel, TikTok, or post. Search hard for this. Only include if you've confirmed the URL resolves.
+- cover_image_post: Required for every item. Must be a post showing the FOOD at THIS specific restaurant — from a food blogger, food creator, or regular diner only. NOT the restaurant's own account, and NOT from editorial outlets like Eater, The Infatuation, Time Out, or Hot Dinners. Best sources: the restaurant's tagged photos on Instagram, or the restaurant's geotag. Must show actual food/dishes — not exteriors, not graphic cards. Each restaurant must have a DISTINCT cover URL — never reuse the same URL across two restaurants. Only include if you've confirmed the URL resolves.
 
 For COMING SOON items also return:
 - source_url: URL to the article or announcement that confirms this opening and its date — required. Only include if you've confirmed it resolves.
@@ -460,7 +461,7 @@ Also search for: restaurant reservation regulation news, reservation bot crackdo
 new reservation-adjacent features from Google/Apple Maps, dining trend shifts.
 
 Find 2-3 most relevant items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words, why it matters for ResX), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
 """
 
     elif section == "hospitality":
@@ -480,7 +481,7 @@ summaries. Think: "Vesper is averaging 1.5 martinis per guest since opening" or 
 Osteria Vibrato carry Tide Pens in their pockets." The more specific and insider the better.
 
 Find 2-3 items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
 """
 
     elif section == "industry":
@@ -492,7 +493,7 @@ Look for: M&A in hospitality tech, platform updates (OpenTable, Resy, SevenRooms
 restaurant industry business news, funding rounds, policy changes affecting restaurants.
 
 Find 2-3 items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words, why it matters for ResX), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
 """
 
     elif section == "city_pulse":
@@ -523,7 +524,7 @@ A neighbourhood suddenly having energy, a behaviour shift in how people go out, 
 blowing up on social. Real facts and named details beat vague observations every time.
 
 Find 2 NYC items and 2 London items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
 """
 
     elif section == "specials":
@@ -542,7 +543,7 @@ You are looking SPECIFICALLY for:
 NOT interested in: general prix-fixe deals, restaurant week, generic seasonal menus without a story.
 
 Find 2-3 items across NYC and London. {city_label_instruction}
-For each return: headline (punchy, include dish/collab name, max 8 words), detail (max 12 words including dates), so_what (max 10 words, social/content angle for ResX), url (direct link if available), city.
+For each return: headline (punchy, include dish/collab name, max 8 words), detail (max 12 words including dates), so_what (max 10 words — factual and direct, no hype), url (direct link if available), city.
 """
 
     elif section == "ai_tech":
@@ -556,7 +557,7 @@ a React Native + Node/TypeScript + Firebase stack. Include only things with real
 practical relevance — not hype.
 
 Find 2-3 items. City field should always be 'BOTH' for AI/Tech.
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words on how it applies), url (direct link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct link if available), city.
 """
     else:
         return []
@@ -571,9 +572,10 @@ For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
-            "You are a sharp analyst writing for a small startup team. "
-            "Be punchy and specific. Return only a valid JSON array of objects with keys: "
-            "headline, detail, so_what, url, city. No markdown fences."
+            "You are a sharp editor writing for a small startup team. "
+            "Be factual and specific — no hype, no marketing language, no AI-sounding phrases. "
+            "Only surface articles published within the last 7 days; do not include content from previous months or years. "
+            "Return only a valid JSON array of objects with keys: headline, detail, so_what, url, city. No markdown fences."
         ),
         max_tokens=1500,
     )
