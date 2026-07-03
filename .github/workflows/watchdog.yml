@@ -1,0 +1,33 @@
+name: ResX Bot Watchdog
+
+on:
+  schedule:
+    # 45 min after the bot's scheduled time (12:15 UTC) on Mon and Fri
+    - cron: "0 13 * * 1,5"
+  workflow_dispatch:
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
+    steps:
+      - name: Re-trigger bot if it missed today's run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          ALREADY_RAN=$(gh run list \
+            --workflow="news_bot.yml" \
+            --repo "$GITHUB_REPOSITORY" \
+            --limit 10 \
+            --json createdAt,status \
+            --jq "[.[] | select(.createdAt | startswith(\"$TODAY\")) | select(.status | IN(\"success\", \"in_progress\", \"queued\"))] | length")
+
+          if [ "$ALREADY_RAN" = "0" ]; then
+            echo "Bot missed today's run — re-triggering"
+            gh workflow run news_bot.yml --repo "$GITHUB_REPOSITORY" --ref main
+          else
+            echo "Bot already ran today — all good"
+          fi
