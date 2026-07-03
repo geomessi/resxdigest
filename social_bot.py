@@ -100,24 +100,32 @@ def research_ugc(seen_urls: set) -> list:
     signal = ", ".join(NYC_SIGNAL_ACCOUNTS + LONDON_SIGNAL_ACCOUNTS)
 
     prompt = f"""
-You are finding UGC (user-generated content) for the team at ResX — a last-minute restaurant
-reservation marketplace for 25-35 year olds in NYC and London — to repost on their social channels.
+You are curating daily social content for ResX — a last-minute restaurant reservation app
+for 25-35 year olds in NYC and London. This goes to the internal team's #social channel
+so they know what's trending and what to repost.
 
 Target audience vibe (use as calibration only, do NOT cite): {signal}
 
-Search Instagram and TikTok for food creator posts from the past 24-48 hours in NYC and London.
+Search for the most timely, shareable, culturally relevant content from the past 24-48 hours
+across NYC and London. Cast a wide net — this is NOT just food content. Think:
 
-You are looking for:
-- Instagram reels or TikToks from food bloggers, food creators, or regular diners
-- Visually compelling food, drinks, or dining experiences — the kind of thing the ResX audience
-  would stop scrolling for
-- Restaurant visits, dishes worth ordering, hidden gems, hot spots having a moment
-- NOT brand accounts, NOT editorial outlets (Eater, Infatuation, Time Out), NOT PR posts
+- Viral or quirky NYC/London moments (e.g. a couple going viral for climbing the Empire State
+  Building, a street performer blowing up, a bizarre local news story everyone's sharing)
+- Celebrity or cultural figure spotted at a restaurant or out in the city
+- Food and drink collabs generating buzz (brand x brand, chef x restaurant, etc.)
+- Pop culture gossip tied to NYC or London (film premieres, fashion moments, artist sightings)
+- Trending songs or artists with a NYC/London connection people are talking about
+- New social trends or behaviours the going-out audience is doing right now
+- Visually stunning or surprising food/drink content worth reposting
+- Anything the 25-35 going-out crowd in NYC or London is actively sharing or talking about TODAY
 
-Find 5-7 posts across NYC and London. For each return:
-- handle: creator's Instagram or TikTok handle (e.g. @foodienyc)
-- label: one factual sentence on what it shows and why it's repostable (max 12 words)
-- url: direct link to the post or reel
+Find 5-7 items. Mix of NYC and London. Prioritise things that feel timely and surprising —
+not generic lifestyle content. Each item should feel like something you'd text a friend.
+
+For each return:
+- handle: Instagram or TikTok handle of the creator/source (e.g. @username)
+- label: one punchy factual sentence on what it is and why it's shareable (max 12 words)
+- url: direct link to the post, reel, or article
 - city: "NYC", "LDN", or "BOTH"
 
 Do NOT include any of these URLs which have already been sent:
@@ -132,8 +140,8 @@ Return ONLY a valid JSON array:
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
-            "You are a social media researcher for a food and dining brand. "
-            "Find real, verifiable UGC posts. Be factual and specific — no hype. "
+            "You are a culturally plugged-in social media curator. "
+            "Find real, verifiable, timely content — specific and surprising, not generic. "
             "Return only a valid JSON array, no markdown."
         ),
     )
