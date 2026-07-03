@@ -23,9 +23,11 @@ from pathlib import Path
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 SLACK_WEBHOOK_URL = os.environ["SLACK_WEBHOOK_URL"]
 
-SEEN_OPENINGS_FILE = Path("data/seen_openings.json")
-COMPETITORS_FILE   = Path("data/competitors.json")
-WATCHING_FILE      = Path("data/watching.json")
+SEEN_OPENINGS_FILE  = Path("data/seen_openings.json")
+COMPETITORS_FILE    = Path("data/competitors.json")
+WATCHING_FILE       = Path("data/watching.json")
+SEEN_STORIES_FILE   = Path("data/seen_stories.json")
+PINNED_STORIES_FILE = Path("data/pinned_stories.json")
 
 # ---------------------------------------------------------------------------
 # Signal accounts — used as vibe/trend calibration, NOT cited directly
@@ -54,6 +56,7 @@ SEED_COMPETITORS = [
     "Tock", "Blackbird", "The Infatuation", "Eater",
     "reservation scalper bots", "Telegram reservation groups",
     "DesignMyNight", "Hot Dinners",
+    "The Spot",
 ]
 
 # ---------------------------------------------------------------------------
@@ -76,6 +79,7 @@ SOURCES = {
     ],
     "hospitality": [
         "Feed Me Emily Sundberg Substack latest issue",
+        "Everything's Toasted newsletter latest",
         "Mercer Street Hospitality Substack latest",
         "On The House Substack restaurant news",
         "Casper Media Instagram hospitality news",
@@ -193,6 +197,65 @@ def verify_url(url: str) -> bool:
             return resp.status < 400
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Holiday & food-day calendar
+# (month, day, name, special_header_template, prompt_hint, is_food_day)
+# special_header_template=None for food days; July 4 header is computed dynamically.
+# ---------------------------------------------------------------------------
+
+CALENDAR = [
+    (1,  1,  "New Year's Day",          "🥂 New Year's Edition",    "New Year's is tomorrow — look for NYE dining, top tables for the year, and resolution menus",                       False),
+    (2,  9,  "National Pizza Day",       None,                       "It's National Pizza Day — surface pizza collabs, legendary slices, or pizza cultural moments in NYC/London",         True),
+    (2, 14,  "Valentine's Day",          "❤️ Valentine's Edition",   "Valentine's Day is coming — look for romantic dining, prix-fixe specials, and date-night spots",                     False),
+    (2, 22,  "National Margarita Day",   None,                       "National Margarita Day is this week — margarita specials, tequila bars having a moment",                             True),
+    (5,  5,  "Cinco de Mayo",            None,                       "Cinco de Mayo is days away — Mexican restaurant collabs, mezcal/tequila moments worth noting",                       True),
+    (5, 28,  "National Burger Day (US)", None,                       "National Burger Day (US) is this week — burger collabs, smash burger moments, limited edition patties",              True),
+    (6, 19,  "National Martini Day",     None,                       "National Martini Day is this week — martini specials, dirty martini trends, cocktail bar news",                      True),
+    (7,  4,  "Fourth of July",           "🇺🇸 Special Edition",      "Fourth of July is days away — look for patriotic dining content, summer entertaining, and July 4th specials in NYC", False),
+    (7, 17,  "National Hot Dog Day",     None,                       "National Hot Dog Day is this week — hot dog collabs, NYC cart culture moments, limited-run dogs",                    True),
+    (8, 25,  "UK Summer Bank Holiday",   None,                       "UK Bank Holiday weekend — London pop-ups, long-weekend dining, and things to do",                                    False),
+    (10,  4, "National Taco Day",        None,                       "National Taco Day is days away — taco collabs, creative fillings, taco pop-ups worth noting",                        True),
+    (10, 31, "Halloween",                "🎃 Halloween Edition",     "Halloween is days away — spooky dining events, themed menus, Halloween pop-ups and collabs",                          False),
+    (11,  5, "Guy Fawkes Night",         None,                       "Guy Fawkes Night is days away — London fireworks dining, bonfire night restaurant events",                            False),
+    (12, 25, "Christmas",                "🎄 Holiday Edition",       "Christmas is approaching — festive menus, holiday dining, Christmas party venues in NYC and London",                  False),
+    (12, 26, "Boxing Day",               None,                       "Boxing Day is coming — post-Christmas London dining, Boxing Day brunch spots",                                        False),
+]
+
+
+def get_holiday_context(today: datetime.date) -> dict:
+    """
+    Returns {"special_header": str|None, "prompt_hints": [str]} for any holiday or food day
+    within 10 days (or 7 days for food days). special_header is only set when a major holiday
+    is within 3 days.
+    """
+    hints = []
+    special_header = None
+
+    for month, day, name, header_tpl, hint, is_food_day in CALENDAR:
+        try:
+            holiday = datetime.date(today.year, month, day)
+        except ValueError:
+            continue
+        days_until = (holiday - today).days
+        window = 7 if is_food_day else 10
+        if 0 <= days_until <= window:
+            hints.append(hint)
+            if not is_food_day and days_until <= 3 and header_tpl and not special_header:
+                if month == 7 and day == 4:
+                    years = today.year - 1776
+                    special_header = f"🇺🇸 Special Edition — America's {years}th Birthday"
+                else:
+                    special_header = header_tpl
+
+    # Month-long observances
+    if today.month == 6:
+        hints.append("It's Pride Month — look for LGBTQ+ dining moments, pride events at restaurants, rainbow menus and collabs")
+    if today.month == 1:
+        hints.append("It's Dry January and Veganuary — look for 0% cocktails, mocktail menus, and vegan restaurant moments")
+
+    return {"special_header": special_header, "prompt_hints": hints}
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +416,13 @@ Return ONLY valid JSON:
 # Step 3 — Research news sections
 # ---------------------------------------------------------------------------
 
-def research_section(section: str, competitors: list = None, exclude: list = None) -> list:
+def research_section(
+    section: str,
+    competitors: list = None,
+    exclude: list = None,
+    seen_stories: list = None,
+    holiday_hint: str = None,
+) -> list:
     """Returns list of dicts: {headline, detail, so_what, city}"""
 
     city_label_instruction = (
@@ -371,6 +440,14 @@ def research_section(section: str, competitors: list = None, exclude: list = Non
             f"\n\nIMPORTANT: The following stories have already appeared earlier in this digest — "
             f"do NOT include them or any article covering the same news:\n{already_used}\n"
             f"Find different stories that do not duplicate any of the above."
+        )
+
+    seen_instruction = ""
+    if seen_stories:
+        keys_str = "\n".join(f"- {k}" for k in seen_stories[:60])
+        seen_instruction = (
+            f"\n\nIMPORTANT: These stories appeared in recent digest runs — "
+            f"do NOT cover the same events or articles. Find fresh content from THIS WEEK:\n{keys_str}"
         )
 
     if section == "landscape":
@@ -392,11 +469,15 @@ For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 
         prompt = f"""
 Search these insider hospitality sources: {sources_str}
 
-As vibe calibration for what the 25-35 audience cares about, these accounts are signal 
+As vibe calibration for what the 25-35 audience cares about, these accounts are signal
 (do NOT cite them directly): {signal}
 
-Look for: chef moves, brand x restaurant collabs, notable closures, food media moments, 
+Look for: chef moves, brand x restaurant collabs, notable closures, food media moments,
 industry gossip, chef/restaurant cultural moments. Prioritize NYC and London.
+
+Be specific — include real figures, named details, and insider observations, not generic trend
+summaries. Think: "Vesper is averaging 1.5 martinis per guest since opening" or "Waiters at
+Osteria Vibrato carry Tide Pens in their pockets." The more specific and insider the better.
 
 Find 2-3 items. {city_label_instruction}
 For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words), url (direct article link if available), city.
@@ -420,7 +501,7 @@ For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 
         signal_nyc = ", ".join(NYC_SIGNAL_ACCOUNTS)
         signal_ldn = ", ".join(LONDON_SIGNAL_ACCOUNTS)
         prompt = f"""
-You are finding 3-4 city culture moments from the past week for a 25-35 going-out audience 
+You are finding 3-4 city culture moments from the past week for a 25-35 going-out audience
 in NYC and London.
 
 NYC sources: {nyc_sources}
@@ -429,10 +510,17 @@ London sources: {ldn_sources}
 NYC signal accounts (use as vibe calibration, do NOT cite): {signal_nyc}
 London signal accounts (use as vibe calibration, do NOT cite): {signal_ldn}
 
-Look for: cultural trends, what the city is obsessed with, experiences people are seeking out,
-social moments, things driving people to make plans. NOT generic events listings.
-Think: gaming clubs having a moment, a film everyone's talking about that ties to a dining scene,
-a neighbourhood suddenly having energy, a behaviour shift in how people are going out.
+Look for:
+- Cultural trends: what the city is obsessed with, experiences people are seeking out
+- Social moments driving people to make plans
+- Celebrity or cultural figure spotted at a restaurant — the gossip-meets-dining crossover
+  (e.g. "Sabrina Carpenter caught at Emmets on Grove" — this kind of micro-moment is gold)
+- Brand × food collabs going viral on social media (e.g. a yogurt brand doing a froyo pop-up)
+- NOT generic events listings
+
+Be specific — name the place, the person, the detail. Think insider knowledge, not trend think-pieces.
+A neighbourhood suddenly having energy, a behaviour shift in how people go out, a niche thing
+blowing up on social. Real facts and named details beat vague observations every time.
 
 Find 2 NYC items and 2 London items. {city_label_instruction}
 For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words), url (direct article link if available), city.
@@ -473,8 +561,12 @@ For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 
     else:
         return []
 
+    if holiday_hint:
+        prompt = f"CONTEXT FOR THIS RUN: {holiday_hint}\n\n" + prompt.lstrip()
     if exclude_instruction:
         prompt = prompt.rstrip() + exclude_instruction
+    if seen_instruction:
+        prompt = prompt.rstrip() + seen_instruction
 
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
@@ -577,9 +669,17 @@ def build_slack_blocks(
     specials: list,
     ai_tech: list,
     new_competitors: list,
+    special_header: str = None,
 ) -> list:
 
     blocks = []
+
+    # Optional special edition one-liner (holidays, birthdays, etc.)
+    if special_header:
+        blocks.append({
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": f"*{special_header}*"}],
+        })
 
     # Header
     blocks.append({
@@ -728,12 +828,42 @@ def build_slack_blocks(
 # Main
 # ---------------------------------------------------------------------------
 
+def _story_keys(items: list) -> list[str]:
+    """Extract dedup keys (url preferred, headline fallback) from a list of story dicts."""
+    keys = []
+    for item in items:
+        key = item.get("url") or item.get("headline", "")
+        if key:
+            keys.append(key)
+    return keys
+
+
 def main():
-    today = datetime.date.today().strftime("%B %d, %Y")
-    print(f"Running ResX News Bot — {today}")
+    today = datetime.date.today()
+    today_str = today.strftime("%B %d, %Y")
+    today_iso = today.isoformat()
+    print(f"Running ResX News Bot — {today_str}")
 
     seen_openings = set(load_json(SEEN_OPENINGS_FILE, []))
     watching = load_json(WATCHING_FILE, [])
+
+    # Load pinned stories (manually added between runs)
+    pinned = load_json(PINNED_STORIES_FILE, [])
+
+    # Load cross-run story dedup keys (last 14 days = ~4 runs)
+    seen_stories_raw = load_json(SEEN_STORIES_FILE, [])
+    cutoff = (today - datetime.timedelta(days=14)).isoformat()
+    recent_story_keys = [e["key"] for e in seen_stories_raw if e.get("date", "") >= cutoff]
+    print(f"Loaded {len(recent_story_keys)} recent story keys for dedup")
+
+    # Compute holiday context
+    holiday_ctx = get_holiday_context(today)
+    special_header = holiday_ctx["special_header"]
+    holiday_hint = " ".join(holiday_ctx["prompt_hints"]) if holiday_ctx["prompt_hints"] else None
+    if special_header:
+        print(f"Holiday special edition: {special_header}")
+    if holiday_hint:
+        print(f"Holiday hint injected: {holiday_hint[:80]}...")
 
     print("Refreshing competitor list...")
     competitors, new_competitors = refresh_competitors()
@@ -744,7 +874,7 @@ def main():
     print("Researching London openings...")
     london_result = research_openings("london", seen_openings, watching)
 
-    nyc_data   = nyc_result.get("just_opened", {"items": [], "ugc": []})
+    nyc_data    = nyc_result.get("just_opened", {"items": [], "ugc": []})
     london_data = london_result.get("just_opened", {"items": [], "ugc": []})
 
     # Graduate watching items that have now opened
@@ -764,27 +894,43 @@ def main():
     save_json(WATCHING_FILE, watching)
 
     print("Researching hospitality...")
-    hospitality = research_section("hospitality")
+    hospitality = research_section("hospitality", seen_stories=recent_story_keys, holiday_hint=holiday_hint)
     used = list(hospitality)
 
     print("Researching industry...")
-    industry = research_section("industry", exclude=used)
+    industry = research_section("industry", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
     used += industry
 
     print("Researching landscape...")
-    landscape = research_section("landscape", competitors, exclude=used)
+    landscape = research_section("landscape", competitors, exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
     used += landscape
 
     print("Researching city pulse...")
-    city_pulse = research_section("city_pulse", exclude=used)
+    city_pulse = research_section("city_pulse", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
     used += city_pulse
 
     print("Researching specials & collabs...")
-    specials = research_section("specials", exclude=used)
+    specials = research_section("specials", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
     used += specials
 
     print("Researching AI & tech...")
-    ai_tech = research_section("ai_tech", exclude=used)
+    ai_tech = research_section("ai_tech", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
+
+    # Inject pinned stories into their target sections
+    section_map = {
+        "hospitality": hospitality,
+        "industry":    industry,
+        "landscape":   landscape,
+        "city_pulse":  city_pulse,
+        "specials":    specials,
+        "ai_tech":     ai_tech,
+    }
+    for pin in pinned:
+        target_key = pin.get("section", "city_pulse")
+        target = section_map.get(target_key)
+        if target is not None:
+            target.append({k: v for k, v in pin.items() if k != "section"})
+            print(f"Pinned story injected into {target_key!r}: {pin.get('headline', '')}")
 
     # Update seen openings
     new_names = (
@@ -794,9 +940,22 @@ def main():
     seen_openings.update(new_names)
     save_json(SEEN_OPENINGS_FILE, list(seen_openings))
 
+    # Save cross-run story dedup keys (keep last 30 days to cap file size)
+    new_story_entries = [
+        {"key": k, "date": today_iso}
+        for k in _story_keys(hospitality + industry + landscape + city_pulse + specials + ai_tech)
+    ]
+    keep_cutoff = (today - datetime.timedelta(days=30)).isoformat()
+    all_stories = [e for e in seen_stories_raw if e.get("date", "") >= keep_cutoff] + new_story_entries
+    save_json(SEEN_STORIES_FILE, all_stories)
+
+    # Clear pinned stories now that they've been included
+    if pinned:
+        save_json(PINNED_STORIES_FILE, [])
+
     print("Building Slack blocks...")
     blocks = build_slack_blocks(
-        date_str=today,
+        date_str=today_str,
         nyc_data=nyc_data,
         london_data=london_data,
         watching=watching,
@@ -807,6 +966,7 @@ def main():
         specials=specials,
         ai_tech=ai_tech,
         new_competitors=new_competitors,
+        special_header=special_header,
     )
 
     print(f"Posting to Slack... ({len(blocks)} blocks)")
