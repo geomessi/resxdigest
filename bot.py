@@ -353,10 +353,6 @@ For each restaurant in BOTH lists return:
 For COMING SOON items also return:
 - source_url: URL to the article or announcement that confirms this opening and its date — required. Only include if you've confirmed it resolves.
 
-For JUST OPENED also find 3-5 UGC posts (Instagram reels or TikToks) from food creators
-(not the restaurant's own account). For each include the URL and a short label — creator handle
-plus what it shows, e.g. "@foodie_nyc reviews the tasting menu". Only include URLs you've confirmed exist.
-
 Return ONLY valid JSON:
 {{
   "just_opened": {{
@@ -365,8 +361,7 @@ Return ONLY valid JSON:
         "name": "...", "date": "...", "blurb": "...", "city": "...",
         "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
       }}
-    ],
-    "ugc": [{{"url": "...", "label": "..."}}]
+    ]
   }},
   "coming_soon": [
     {{
@@ -717,17 +712,6 @@ def build_slack_blocks(
                 "type": "section",
                 "text": {"type": "mrkdwn", "text": format_opening_item(item)},
             })
-
-    # UGC
-    all_ugc = nyc_data.get("ugc", []) + london_data.get("ugc", [])
-    if all_ugc:
-        ugc_lines = "\n".join(
-            f"  · {safe_link(u['url'], u['label'])}" for u in all_ugc[:6] if u.get("url")
-        )
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": f"*UGC to repost:*\n{ugc_lines}"},
-        })
 
     blocks.append({"type": "divider"})
 
