@@ -194,11 +194,10 @@ def build_slack_blocks(date_str: str, items: list) -> list:
         tag     = city_tag.get(item.get("city", "BOTH"), "")
 
         link_str = f"  {safe_link(url, 'link')}" if url else ""
+        why_str = f"  _{why_now}_" if why_now else ""
         lines = [f"*{content}*{tag}{link_str}"]
         if action:
-            lines.append(f"→ {action}")
-        if why_now:
-            lines.append(f"_{why_now}_")
+            lines.append(f"→ {action}{why_str}")
 
         blocks.append({
             "type": "section",
