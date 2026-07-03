@@ -135,8 +135,11 @@ For each return:
   cool girl energy, like a friend texting a tip. e.g. "repost with 'your sign to book tonight'"
   or "use this audio over empty-table-to-full-room b-roll" or "comment 'table for 2?' on this".
   Max 15 words. No marketing speak.
-- url: direct link to the Instagram post, TikTok, or Reel — prioritise social links over articles.
-  If you only have an article, include it, but always search for the original IG/TikTok post first.
+- url: primary link — must be an Instagram post/reel, TikTok, or song (Spotify/Apple Music/SoundCloud).
+  This is what the team will repost, use the audio from, or engage with directly.
+  Search hard for this. If you can only find an article, leave url blank.
+- context_url: optional. An article or news link that gives background context on why this is relevant.
+  Only include if genuinely useful — not required.
 - city: "NYC", "LDN", or "BOTH"
 - why_now: one line on timing or cultural context, lowercase, max 8 words
 
@@ -145,7 +148,7 @@ Do NOT include any of these URLs which have already been sent:
 
 Return ONLY a valid JSON array:
 [
-  {{"content": "...", "action": "...", "url": "...", "city": "...", "why_now": "..."}}
+  {{"content": "...", "action": "...", "url": "...", "context_url": "...", "city": "...", "why_now": "..."}}
 ]
 """
 
@@ -193,9 +196,11 @@ def build_slack_blocks(date_str: str, items: list) -> list:
         why_now = item.get("why_now", "")
         tag     = city_tag.get(item.get("city", "BOTH"), "")
 
-        link_str = f"  {safe_link(url, 'link')}" if url else ""
-        why_str = f"  _{why_now}_" if why_now else ""
-        lines = [f"*{content}*{tag}{link_str}"]
+        context_url = item.get("context_url", "")
+        link_str    = f"  {safe_link(url, 'open')}" if url else ""
+        context_str = f"  ·  {safe_link(context_url, 'context')}" if context_url else ""
+        why_str     = f"  _{why_now}_" if why_now else ""
+        lines = [f"*{content}*{tag}{link_str}{context_str}"]
         if action:
             lines.append(f"→ {action}{why_str}")
 
