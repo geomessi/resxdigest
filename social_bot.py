@@ -181,19 +181,19 @@ def build_slack_blocks(date_str: str, items: list) -> list:
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": f"📱  Social Opportunities  ·  {date_str}"},
+            "text": {"type": "plain_text", "text": f"Social Opportunities  ·  {date_str}"},
         }
     ]
 
     for item in items:
-        content  = item.get("content", "")
-        action   = item.get("action", "")
-        url      = item.get("url", "")
-        why_now  = item.get("why_now", "")
-        tag      = city_tag.get(item.get("city", "BOTH"), "")
+        content = item.get("content", "")
+        action  = item.get("action", "")
+        url     = item.get("url", "")
+        why_now = item.get("why_now", "")
+        tag     = city_tag.get(item.get("city", "BOTH"), "")
 
-        content_str = safe_link(url, content) if url else content
-        lines = [f"*{content_str}*{tag}"]
+        link_str = f"  {safe_link(url, 'link')}" if url else ""
+        lines = [f"*{content}*{tag}{link_str}"]
         if action:
             lines.append(f"→ {action}")
         if why_now:
