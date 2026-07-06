@@ -42,11 +42,66 @@
   {
     "name": "Saison",
     "date": "opens early July 2026",
-    "blurb": "Sammy Rees's Bed-Stuy corner shop pairs vintage finds with baked goods and coffee — she's been posting construction progress ahead of a birth-month soft open.",
+    "blurb": "Sammy Rees's Bed-Stuy corner shop pairs vintage finds with baked goods and coffee \u2014 she's been posting construction progress ahead of a birth-month soft open.",
     "city": "NYC",
     "website": "https://www.bysaison.co",
     "instagram_handle": "@bysaison",
     "instagram_url": "https://www.instagram.com/bysaison/",
     "cover_image_post": ""
+  },
+  {
+    "name": "Monday Diner",
+    "date": "opens late summer/fall 2026",
+    "blurb": "James Beard finalist Caroline Schiff opens a proper, no-frills classic Brooklyn diner.",
+    "city": "NYC",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "https://www.instagram.com/p/C7ACLWQOgIq/",
+    "source_url": "https://grime-square.com/2026/05/23/caroline-schiff-monday-diner-opening-bushwick/"
+  },
+  {
+    "name": "Naked Tomato",
+    "date": "opens late 2026",
+    "blurb": "Eyal Shani's fire-skewer, ingredient-first Israeli concept lands at Williamsburg Wharf.",
+    "city": "NYC",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "https://www.instagram.com/p/DLC3W_zxtYq/",
+    "source_url": "https://www.nrn.com/independent-restaurants/chef-eyal-shani-has-opened-naked-tomato-in-miami-with-brooklyn-to-follow"
+  },
+  {
+    "name": "Soraya",
+    "date": "opens July 15",
+    "blurb": "Pachamama's biggest London restaurant yet \u2014 all-day Persian feasting in Marylebone.",
+    "city": "LDN",
+    "website": "https://www.sorayarestaurant.com",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://www.hot-dinners.com/2026042315000/Gastroblog/Latest-news/soraya-london-pachamama-group-loxton-walk-marylebone-restaurant"
+  },
+  {
+    "name": "Kismet",
+    "date": "opens July 16",
+    "blurb": "Dom Hamdy + ex-BiBi chef Keiran Mustafa bring live-music Istanbul meyhane vibes to Borough.",
+    "city": "LDN",
+    "website": "https://kismet.london",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://premierconstructionnews.com/2026/06/29/kismet-a-new-restaurant-from-dom-hamdy-keiran-mustafa-to-open-next-month/"
+  },
+  {
+    "name": "Hon's BBQ",
+    "date": "opens July 17",
+    "blurb": "Poker-winnings-funded Texan-Asian BBQ goes permanent above Crate Brewery, Hackney Wick.",
+    "city": "LDN",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://thenudge.com/hons-bbq/"
   }
 ]
