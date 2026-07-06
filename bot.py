@@ -28,6 +28,7 @@ COMPETITORS_FILE    = Path("data/competitors.json")
 WATCHING_FILE       = Path("data/watching.json")
 SEEN_STORIES_FILE   = Path("data/seen_stories.json")
 PINNED_STORIES_FILE = Path("data/pinned_stories.json")
+LAST_POST_FILE      = Path("data/last_post.json")
 
 # ---------------------------------------------------------------------------
 # Signal accounts — used as vibe/trend calibration, NOT cited directly
@@ -830,6 +831,14 @@ def main():
     today_iso = today.isoformat()
     print(f"Running ResX News Bot — {today_str}")
 
+    last_post = load_json(LAST_POST_FILE, {})
+    if last_post.get("date") == today_iso and os.environ.get("FORCE_POST") != "1":
+        print(
+            f"Already posted today ({today_iso}) at {last_post.get('posted_at', 'unknown time')} "
+            f"— skipping to avoid a duplicate digest. Set FORCE_POST=1 to override."
+        )
+        return
+
     seen_openings = set(load_json(SEEN_OPENINGS_FILE, []))
     watching = load_json(WATCHING_FILE, [])
 
@@ -961,6 +970,10 @@ def main():
         if txt:
             print(f"  block[{i}] len={len(txt)}: {txt[:80]!r}")
     post_to_slack(blocks)
+    save_json(LAST_POST_FILE, {
+        "date": today_iso,
+        "posted_at": datetime.datetime.utcnow().isoformat() + "Z",
+    })
     print("Done ✓")
 
 
