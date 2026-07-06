@@ -132,18 +132,18 @@ is good. "@charliXCX" is useless. "NBC NY posted a round-up of July 4th ice crea
 Find 5-7 items. Mix of NYC and London.
 
 For each return:
-- content: what specifically it is (name the song/post/moment/trend — be exact)
+- content: what specifically it is (name the song/post/moment/trend — be exact). Max 8 words.
 - action: one specific caption direction or action in ResX brand voice — insider, lowercase,
   cool girl energy, like a friend texting a tip. e.g. "repost with 'your sign to book tonight'"
   or "use this audio over empty-table-to-full-room b-roll" or "comment 'table for 2?' on this".
-  Max 15 words. No marketing speak.
+  Max 7 words. No marketing speak.
 - url: primary link — must be an Instagram post/reel, TikTok, or song (Spotify/Apple Music/SoundCloud).
   This is what the team will repost, use the audio from, or engage with directly.
   Search hard for this. If you can only find an article, leave url blank.
 - context_url: optional. An article or news link that gives background context on why this is relevant.
   Only include if genuinely useful — not required.
 - city: "NYC", "LDN", or "BOTH"
-- why_now: one line on timing or cultural context, lowercase, max 8 words
+- why_now: timing or cultural context, lowercase, max 4 words
 
 Do NOT include any of these URLs which have already been sent:
 {seen_str}
@@ -166,6 +166,8 @@ Return ONLY a valid JSON array:
             "texting you a tip, not a marketing brief. "
             "Every suggestion must be specific and immediately actionable — name exact songs, "
             "link to exact posts, suggest exact copy or caption directions. "
+            "Brevity is the brand voice: short and sharp beats thorough. Cut every word that "
+            "isn't load-bearing. If a sentence works with a word removed, remove it. "
             "No generic accounts, no vague trends, no AI-sounding phrases. "
             "Return only a valid JSON array, no markdown."
         ),
@@ -181,9 +183,24 @@ Return ONLY a valid JSON array:
         return []
 
 
-def build_slack_blocks(date_str: str, items: list) -> list:
-    city_tag = {"NYC": " _NYC_", "LDN": " _LDN_", "BOTH": ""}
+def format_ugc_item(item: dict) -> str:
+    content = item.get("content", "")
+    action  = item.get("action", "")
+    url     = item.get("url", "")
+    why_now = item.get("why_now", "")
 
+    context_url = item.get("context_url", "")
+    link_str    = f"  {safe_link(url, 'open')}" if url else ""
+    context_str = f"  ·  {safe_link(context_url, 'context')}" if context_url else ""
+    why_str     = f"  _{why_now}_" if why_now else ""
+    lines = [f"*{content}*{link_str}{context_str}"]
+    if action:
+        lines.append(f"→ {action}{why_str}")
+
+    return "\n".join(lines)
+
+
+def build_slack_blocks(date_str: str, items: list) -> list:
     blocks = [
         {
             "type": "header",
@@ -191,25 +208,32 @@ def build_slack_blocks(date_str: str, items: list) -> list:
         }
     ]
 
-    for item in items:
-        content = item.get("content", "")
-        action  = item.get("action", "")
-        url     = item.get("url", "")
-        why_now = item.get("why_now", "")
-        tag     = city_tag.get(item.get("city", "BOTH"), "")
+    nyc_items = [i for i in items if i.get("city", "BOTH").upper() in ("NYC", "BOTH")]
+    ldn_items = [i for i in items if i.get("city", "BOTH").upper() in ("LDN", "BOTH")]
 
-        context_url = item.get("context_url", "")
-        link_str    = f"  {safe_link(url, 'open')}" if url else ""
-        context_str = f"  ·  {safe_link(context_url, 'context')}" if context_url else ""
-        why_str     = f"  _{why_now}_" if why_now else ""
-        lines = [f"*{content}*{tag}{link_str}{context_str}"]
-        if action:
-            lines.append(f"→ {action}{why_str}")
-
+    if nyc_items:
+        blocks.append({"type": "divider"})
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": "\n".join(lines)},
+            "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
         })
+        for item in nyc_items:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": format_ugc_item(item)},
+            })
+
+    if ldn_items:
+        blocks.append({"type": "divider"})
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
+        })
+        for item in ldn_items:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": format_ugc_item(item)},
+            })
 
     if not items:
         blocks.append({
