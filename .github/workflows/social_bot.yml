@@ -32,6 +32,6 @@ jobs:
         run: |
           git config user.name "resx-digest-bot"
           git config user.email "bot@resx.app"
-          git add data/seen_ugc.json
+          git add data/seen_ugc.json data/last_social_post.json
           git diff --cached --quiet || git commit -m "bot: update seen UGC [skip ci]"
           git push

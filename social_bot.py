@@ -15,6 +15,7 @@ ANTHROPIC_API_KEY  = os.environ["ANTHROPIC_API_KEY"]
 SLACK_WEBHOOK_URL  = os.environ["SLACK_SOCIAL_WEBHOOK_URL"]
 
 SEEN_UGC_FILE = Path("data/seen_ugc.json")
+LAST_POST_FILE = Path("data/last_social_post.json")
 
 NYC_SIGNAL_ACCOUNTS = [
     "@tinx (aspirational 25-35 NYC city life, Rich Mom energy)",
@@ -255,6 +256,14 @@ def main():
     today_iso = today.isoformat()
     print(f"Running ResX Social Bot — {today_str}")
 
+    last_post = load_json(LAST_POST_FILE, {})
+    if last_post.get("date") == today_iso and os.environ.get("FORCE_POST") != "1":
+        print(
+            f"Already posted today ({today_iso}) at {last_post.get('posted_at', 'unknown time')} "
+            f"— skipping to avoid a duplicate post. Set FORCE_POST=1 to override."
+        )
+        return
+
     # Load seen URLs (7-day rolling window)
     seen_raw = load_json(SEEN_UGC_FILE, [])
     cutoff = (today - datetime.timedelta(days=7)).isoformat()
@@ -274,6 +283,10 @@ def main():
     keep_cutoff = (today - datetime.timedelta(days=14)).isoformat()
     all_entries = [e for e in seen_raw if e.get("date", "") >= keep_cutoff] + new_entries
     save_json(SEEN_UGC_FILE, all_entries)
+    save_json(LAST_POST_FILE, {
+        "date": today_iso,
+        "posted_at": datetime.datetime.utcnow().isoformat() + "Z",
+    })
     print("Done ✓")
 
 
