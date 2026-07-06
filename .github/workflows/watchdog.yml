@@ -2,8 +2,10 @@ name: ResX Bot Watchdog
 
 on:
   schedule:
-    # 45 min after the bot's scheduled time (12:15 UTC) on Mon and Fri
-    - cron: "0 13 * * 1,5"
+    # Every 30 min, every day — GitHub deprioritizes/drops schedules that
+    # only fire a couple times a week, so this checks often (cheap on a
+    # public repo) and the script below no-ops except on Mon/Fri.
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -17,6 +19,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          DOW=$(date -u +%u)  # 1=Mon .. 7=Sun
+          if [ "$DOW" != "1" ] && [ "$DOW" != "5" ]; then
+            echo "Not a digest day (Mon/Fri) — nothing to do"
+            exit 0
+          fi
+
           TODAY=$(date -u +%Y-%m-%d)
           ALREADY_RAN=$(gh run list \
             --workflow="news_bot.yml" \
