@@ -1,16 +1,18 @@
 """
 ResX News Bot
-Runs 3x/week via GitHub Actions. Searches for curated news across 7 sections,
-formats a Slack digest, and posts to #news channel via Incoming Webhook.
+Runs 2x/week (Mon/Fri) via GitHub Actions, posts a Slack digest to #news.
+
+Pipeline: research everything (openings + industry/competitor + city/culture + AI/product,
+plus any manually pinned stories) into one flat pool of candidate stories, then a single
+"editor" pass (edit_and_rank) merges duplicates, assigns each story to exactly one final
+category, and ranks importance within category — before rendering.
 
 Sections (in order):
-  1. New Openings (NYC + London)
-  2. Hospitality
-  3. Industry
-  4. Landscape
-  5. City Pulse
-  6. Specials & Collabs
-  7. AI & Tech
+  1. New Openings (NYC + London) — officially opened
+  2. Watching — announced but not yet open; graduates to New Openings automatically
+  3. Industry & Competitor Watch
+  4. City & Culture
+  5. AI & Product — every item includes an explicit "Why it matters" for ResX
 """
 
 import os
@@ -419,6 +421,26 @@ def refresh_competitors() -> tuple[list, list]:
 
 
 # ---------------------------------------------------------------------------
+# Stable identity — fixes restaurants silently duplicating across New Openings / Watching
+# ---------------------------------------------------------------------------
+
+def normalize_identity(name: str, city: str) -> str:
+    """Stable dedup key for a restaurant/venue: lowercase, strip punctuation, drop common
+    city/article suffixes (the exact drift pattern that caused "Dishoom" vs "Dishoom NYC" to
+    silently fail to match). Deliberately does NOT strip parenthetical qualifiers like
+    "(Williamsburg)" — that's left to the edit_and_rank LLM pass, which can tell a dropped
+    disambiguator from two genuinely distinct locations of an expanding chain; a plain string
+    function can't safely make that call."""
+    n = re.sub(r"[''`\".,!]", "", (name or "").lower())
+    n = re.sub(r"\b(nyc|ny|london|the)\b", "", n)
+    n = re.sub(r"\s+", " ", n).strip()
+    city_key = (city or "").strip().upper()
+    if city_key not in ("NYC", "LDN"):
+        city_key = "BOTH"
+    return f"{n}::{city_key}"
+
+
+# ---------------------------------------------------------------------------
 # Step 2 — Research openings
 # ---------------------------------------------------------------------------
 
@@ -426,9 +448,12 @@ def research_openings(city: str, seen: set, watching: list) -> dict:
     """
     Returns:
       {
-        "just_opened": {"items": [...], "ugc": [...]},
+        "just_opened": {"items": [...]},
         "coming_soon": [...]
       }
+    Every item is tagged with "category" ("new_opening" or "watching") and a stable "id"
+    (see normalize_identity) at ingestion, so downstream code never has to re-derive identity
+    from a possibly-drifted name string.
     """
     seen_str = ", ".join(seen) if seen else "none yet"
     city_label = "NYC" if city == "nyc" else "London"
@@ -503,8 +528,9 @@ Return ONLY valid JSON:
         # Find the start of the JSON object and use raw_decode to stop at its end
         start = clean.index("{")
         data, _ = json.JSONDecoder().raw_decode(clean, start)
-        all_items = data.get("just_opened", {}).get("items", []) + data.get("coming_soon", [])
-        for item in all_items:
+        just_opened_items = data.get("just_opened", {}).get("items", [])
+        coming_soon_items = data.get("coming_soon", [])
+        for item in just_opened_items + coming_soon_items:
             if item.get("website") and not verify_url(item["website"]):
                 item["website"] = ""
             if item.get("instagram_url") and not verify_url(item["instagram_url"]):
@@ -514,185 +540,78 @@ Return ONLY valid JSON:
                 item["cover_image_post"] = ""
             if item.get("source_url") and not verify_url(item["source_url"]):
                 item["source_url"] = ""
-        ugc = data.get("just_opened", {}).get("ugc", [])
-        if ugc:
-            # Handle both dict {"url":..,"label":..} and plain string formats
-            data["just_opened"]["ugc"] = [
-                u for u in ugc
-                if isinstance(u, dict) and verify_url(u.get("url", ""))
-            ]
-        return data
+        for item in just_opened_items:
+            item["category"] = "new_opening"
+            item["id"] = normalize_identity(item.get("name", ""), item.get("city", ""))
+        for item in coming_soon_items:
+            item["category"] = "watching"
+            item["id"] = normalize_identity(item.get("name", ""), item.get("city", ""))
+        return {"just_opened": {"items": just_opened_items}, "coming_soon": coming_soon_items}
     except Exception as e:
         print(f"Error parsing openings for {city}: {e}")
 
-    return {"just_opened": {"items": [], "ugc": []}, "coming_soon": []}
+    return {"just_opened": {"items": []}, "coming_soon": []}
 
 
 # ---------------------------------------------------------------------------
 # Step 3 — Research news sections
 # ---------------------------------------------------------------------------
 
-def research_section(
-    section: str,
-    competitors: list = None,
-    exclude: list = None,
-    seen_stories: list = None,
-    holiday_hint: str = None,
-) -> list:
-    """Returns list of dicts: {headline, detail, so_what, city}"""
+def _city_label_instruction() -> str:
+    return "For each item, also include a 'city' field: either 'NYC', 'LDN', or 'BOTH'."
 
-    city_label_instruction = (
-        "For each item, also include a 'city' field: either 'NYC', 'LDN', or 'BOTH'."
+
+def _build_exclude_instruction(exclude: list) -> str:
+    """Stories already surfaced by another research call THIS run — sequential, same-run dedup."""
+    if not exclude:
+        return ""
+    already_used = "\n".join(
+        f"- {item.get('headline', '')} ({item.get('url', 'no url')})"
+        for item in exclude
+        if item.get("headline")
+    )
+    return (
+        f"\n\nIMPORTANT: The following stories have already appeared earlier in this digest — "
+        f"do NOT include them or any article covering the same news:\n{already_used}\n"
+        f"Find different stories that do not duplicate any of the above."
     )
 
-    exclude_instruction = ""
-    if exclude:
-        already_used = "\n".join(
-            f"- {item.get('headline', '')} ({item.get('url', 'no url')})"
-            for item in exclude
-            if item.get("headline")
-        )
-        exclude_instruction = (
-            f"\n\nIMPORTANT: The following stories have already appeared earlier in this digest — "
-            f"do NOT include them or any article covering the same news:\n{already_used}\n"
-            f"Find different stories that do not duplicate any of the above."
-        )
 
-    seen_instruction = ""
-    if seen_stories:
-        covered_str = "\n".join(
-            f"- {s.get('headline', '')} — {s.get('detail', '')} ({s.get('so_what', '')})"
-            for s in seen_stories[:60]
-        )
-        seen_instruction = (
-            f"\n\nIMPORTANT — already covered in recent digests, do not just re-report these:\n"
-            f"{covered_str}\n\n"
-            f"For each one: only cover the same underlying subject again if there is a genuinely "
-            f"MATERIAL new development since — e.g. a restaurant that was 'coming soon' has now "
-            f"officially opened or confirmed its date, a funding rumor is now an official confirmed "
-            f"round, a launch expands to a new city, a new partnership is announced, or a teased "
-            f"date is now confirmed. Do NOT re-cover the same announcement reworded, the same menu "
-            f"item, or the same opening with no new facts — that is a duplicate even if the headline "
-            f"or source differs. If you do include a follow-up to something above, make the new "
-            f"development explicit in 'detail' or 'so_what' (e.g. 'now confirmed for Sept 12', not "
-            f"a repeat of the original teaser)."
-        )
+def _build_seen_instruction(seen_stories: list) -> str:
+    """Stories covered in recent past digests — cross-run dedup, allows a materially new
+    development to resurface a subject rather than blocking it outright."""
+    if not seen_stories:
+        return ""
+    covered_str = "\n".join(
+        f"- {s.get('headline', '')} — {s.get('detail', '')} ({s.get('so_what', '')})"
+        for s in seen_stories[:60]
+    )
+    return (
+        f"\n\nIMPORTANT — already covered in recent digests, do not just re-report these:\n"
+        f"{covered_str}\n\n"
+        f"For each one: only cover the same underlying subject again if there is a genuinely "
+        f"MATERIAL new development since — e.g. a restaurant that was 'coming soon' has now "
+        f"officially opened or confirmed its date, a funding rumor is now an official confirmed "
+        f"round, a launch expands to a new city, a new partnership is announced, or a teased "
+        f"date is now confirmed. Do NOT re-cover the same announcement reworded, the same menu "
+        f"item, or the same opening with no new facts — that is a duplicate even if the headline "
+        f"or source differs. If you do include a follow-up to something above, make the new "
+        f"development explicit in 'detail' or 'so_what' (e.g. 'now confirmed for Sept 12', not "
+        f"a repeat of the original teaser)."
+    )
 
-    if section == "landscape":
-        comp_str = ", ".join(competitors or SEED_COMPETITORS)
-        prompt = f"""
-Search for news from the past week about these restaurant reservation competitors 
-and the broader reservation/dining landscape: {comp_str}
 
-Also search for: restaurant reservation regulation news, reservation bot crackdowns,
-new reservation-adjacent features from Google/Apple Maps, dining trend shifts.
-
-Find 2-3 most relevant items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
-"""
-
-    elif section == "hospitality":
-        sources_str = ", ".join(SOURCES["hospitality"])
-        signal = ", ".join(NYC_SIGNAL_ACCOUNTS + LONDON_SIGNAL_ACCOUNTS)
-        prompt = f"""
-Search these insider hospitality sources: {sources_str}
-
-As vibe calibration for what the 25-35 audience cares about, these accounts are signal
-(do NOT cite them directly): {signal}
-
-Look for: chef moves, brand x restaurant collabs, notable closures, food media moments,
-industry gossip, chef/restaurant cultural moments. Prioritize NYC and London.
-
-Be specific — include real figures, named details, and insider observations, not generic trend
-summaries. Think: "Vesper is averaging 1.5 martinis per guest since opening" or "Waiters at
-Osteria Vibrato carry Tide Pens in their pockets." The more specific and insider the better.
-
-Find 2-3 items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
-"""
-
-    elif section == "industry":
-        sources_str = ", ".join(SOURCES["industry"])
-        prompt = f"""
-Search these industry sources this week: {sources_str}
-
-Look for: M&A in hospitality tech, platform updates (OpenTable, Resy, SevenRooms, DoorDash, Uber Eats),
-restaurant industry business news, funding rounds, policy changes affecting restaurants.
-
-Find 2-3 items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
-"""
-
-    elif section == "city_pulse":
-        nyc_sources = ", ".join(SOURCES["city_pulse_nyc"])
-        ldn_sources = ", ".join(SOURCES["city_pulse_london"])
-        signal_nyc = ", ".join(NYC_SIGNAL_ACCOUNTS)
-        signal_ldn = ", ".join(LONDON_SIGNAL_ACCOUNTS)
-        prompt = f"""
-You are finding 3-4 city culture moments from the past week for a 25-35 going-out audience
-in NYC and London.
-
-NYC sources: {nyc_sources}
-London sources: {ldn_sources}
-
-NYC signal accounts (use as vibe calibration, do NOT cite): {signal_nyc}
-London signal accounts (use as vibe calibration, do NOT cite): {signal_ldn}
-
-Look for:
-- Cultural trends: what the city is obsessed with, experiences people are seeking out
-- Social moments driving people to make plans
-- Celebrity or cultural figure spotted at a restaurant — the gossip-meets-dining crossover
-  (e.g. "Sabrina Carpenter caught at Emmets on Grove" — this kind of micro-moment is gold)
-- Brand × food collabs going viral on social media (e.g. a yogurt brand doing a froyo pop-up)
-- NOT generic events listings
-
-Be specific — name the place, the person, the detail. Think insider knowledge, not trend think-pieces.
-A neighbourhood suddenly having energy, a behaviour shift in how people go out, a niche thing
-blowing up on social. Real facts and named details beat vague observations every time.
-
-Find 2 NYC items and 2 London items. {city_label_instruction}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct article link if available), city.
-"""
-
-    elif section == "specials":
-        sources_str = ", ".join(SOURCES["specials"])
-        prompt = f"""
-Search for limited-time restaurant specials and chef collaborations this week in NYC and London.
-
-Sources: {sources_str}
-
-You are looking SPECIFICALLY for:
-- Named chef x restaurant collabs with a specific dish (e.g. "Chef X x Restaurant Y = The [Dish Name]")
-- Limited-time / seasonal menu items at notable spots with a story behind them
-- Pop-up residencies with a clear end date and a specific menu
-- Things with strong social/visual potential — a great name, a narrative, obvious Instagram appeal
-
-NOT interested in: general prix-fixe deals, restaurant week, generic seasonal menus without a story.
-
-Find 2-3 items across NYC and London. {city_label_instruction}
-For each return: headline (punchy, include dish/collab name, max 8 words), detail (max 12 words including dates), so_what (max 10 words — factual and direct, no hype), url (direct link if available), city.
-"""
-
-    elif section == "ai_tech":
-        sources_str = ", ".join(SOURCES["ai_tech"])
-        prompt = f"""
-Search these sources for the past week: {sources_str}
-
-Look for: new AI tools useful for a small software startup, agent/automation launches,
-model updates from Anthropic/OpenAI/Google, developer tools, product news relevant to
-a React Native + Node/TypeScript + Firebase stack. Include only things with real 
-practical relevance — not hype.
-
-Find 2-3 items. City field should always be 'BOTH' for AI/Tech.
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words — factual and direct, no hype), url (direct link if available), city.
-"""
-    else:
-        return []
-
+def _run_news_research(prompt: str, label: str, exclude: list, seen_stories: list,
+                        holiday_hint: str, max_tokens: int = 1600) -> list:
+    """Shared plumbing for the news-style research calls (industry/culture/ai_product):
+    assembles the holiday/exclude/seen-story instructions, calls Claude, and parses the
+    returned JSON array."""
     if holiday_hint:
         prompt = f"CONTEXT FOR THIS RUN: {holiday_hint}\n\n" + prompt.lstrip()
+    exclude_instruction = _build_exclude_instruction(exclude)
     if exclude_instruction:
         prompt = prompt.rstrip() + exclude_instruction
+    seen_instruction = _build_seen_instruction(seen_stories)
     if seen_instruction:
         prompt = prompt.rstrip() + seen_instruction
 
@@ -701,21 +620,260 @@ For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 
         system=(
             "You are a sharp editor writing for a small startup team. "
             "Be factual and specific — no hype, no marketing language, no AI-sounding phrases. "
-            "Only surface articles published within the last 7 days; do not include content from previous months or years. "
-            "Return only a valid JSON array of objects with keys: headline, detail, so_what, url, city. No markdown fences."
+            "Only surface articles published within the last 7 days; do not include content "
+            "from previous months or years. "
+            "Return only a valid JSON array of objects. No markdown fences."
         ),
-        max_tokens=1500,
+        max_tokens=max_tokens,
     )
 
     try:
         clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
         start = clean.index("[")
         data, _ = json.JSONDecoder().raw_decode(clean, start)
-        return data
+        return data if isinstance(data, list) else []
     except Exception as e:
-        print(f"Error parsing {section}: {e}")
+        print(f"Error parsing {label}: {e}")
+        return []
 
-    return []
+
+def research_industry(competitors: list = None, exclude: list = None,
+                       seen_stories: list = None, holiday_hint: str = None) -> list:
+    """Industry & Competitor Watch. Returns list of dicts: {headline, detail, so_what, url, city}"""
+    comp_str = ", ".join(competitors or SEED_COMPETITORS)
+    sources_str = ", ".join(SOURCES["industry"])
+
+    prompt = f"""
+Search for news from the past week about these restaurant reservation competitors
+and the broader reservation/dining landscape: {comp_str}
+
+Also search these industry sources: {sources_str}
+
+Look for:
+- M&A in hospitality tech, platform updates (OpenTable, Resy, SevenRooms, DoorDash, Uber Eats)
+- Restaurant industry business news, funding rounds, policy changes affecting restaurants
+- Restaurant reservation regulation news, reservation bot crackdowns, new reservation-adjacent
+  features from Google/Apple Maps, dining trend shifts
+- Notable restaurant/chef business moves — closures, chef departures/hires, brand
+  partnerships, acquisitions (the business angle, not the cultural gossip angle — that
+  belongs in City & Culture)
+
+Find 3-5 most relevant items. {_city_label_instruction()}
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words —
+factual and direct, no hype), url (direct article link if available), city.
+"""
+    return _run_news_research(prompt, "industry", exclude, seen_stories, holiday_hint)
+
+
+def research_culture(exclude: list = None, seen_stories: list = None, holiday_hint: str = None) -> list:
+    """City & Culture. Returns list of dicts: {headline, detail, so_what, url, city}"""
+    nyc_sources = ", ".join(SOURCES["city_pulse_nyc"])
+    ldn_sources = ", ".join(SOURCES["city_pulse_london"])
+    specials_sources = ", ".join(SOURCES["specials"])
+    hospitality_sources = ", ".join(SOURCES["hospitality"])
+    signal = ", ".join(NYC_SIGNAL_ACCOUNTS + LONDON_SIGNAL_ACCOUNTS)
+
+    prompt = f"""
+You are finding city culture moments from the past week for a 25-35 going-out audience
+in NYC and London.
+
+NYC sources: {nyc_sources}
+London sources: {ldn_sources}
+Specials/collab sources: {specials_sources}
+Insider hospitality sources: {hospitality_sources}
+
+Signal accounts (use as vibe calibration, do NOT cite directly): {signal}
+
+Look for:
+- Cultural trends: what the city is obsessed with, experiences people are seeking out
+- Social moments driving people to make plans
+- Celebrity or cultural figure spotted at a restaurant — the gossip-meets-dining crossover
+  (e.g. "Sabrina Carpenter caught at Emmets on Grove" — this kind of micro-moment is gold)
+- Brand × food collabs going viral on social media (e.g. a yogurt brand doing a froyo pop-up)
+- Insider hospitality gossip and cultural moments — chef moves as a CULTURAL story (not a
+  business one — that belongs in Industry & Competitor Watch), food-media buzz, brand x
+  restaurant crossover moments
+- Named chef x restaurant collabs with a specific dish (e.g. "Chef X x Restaurant Y = The
+  [Dish Name]"), limited-time/seasonal menu items with a story behind them, pop-up residencies
+  with a clear end date and specific menu
+- NOT generic events listings, NOT general prix-fixe deals/restaurant week/generic seasonal
+  menus without a story
+
+Be specific — name the place, the person, the detail. Think insider knowledge, not trend
+think-pieces. Think: "Vesper is averaging 1.5 martinis per guest since opening" or "Waiters at
+Osteria Vibrato carry Tide Pens in their pockets." Real facts and named details beat vague
+observations every time.
+
+Find 4-5 items across NYC and London. {_city_label_instruction()}
+For each return: headline (punchy, max 8 words), detail (max 12 words), so_what (max 10 words —
+factual and direct, no hype), url (direct link if available), city.
+"""
+    return _run_news_research(prompt, "culture", exclude, seen_stories, holiday_hint)
+
+
+def research_ai_product(exclude: list = None, seen_stories: list = None, holiday_hint: str = None) -> list:
+    """AI & Product. Returns list of dicts: {headline, detail, why_it_matters, url, city}"""
+    sources_str = ", ".join(SOURCES["ai_tech"])
+
+    prompt = f"""
+Search these sources for the past week: {sources_str}
+
+Look for big AI news AND practical implications for a small software startup — this must NOT
+become a generic AI newsletter roundup. Candidates: model releases from Anthropic/OpenAI/Google,
+new agent/automation tooling, developer tools relevant to a React Native + Node/TypeScript +
+Firebase stack, AI features shipping in tools we already use.
+
+For EVERY item, before including it, answer explicitly: does this matter to ResX because it
+could (a) lower our costs, (b) be worth experimenting with, or (c) improve how the team already
+works? If you can't answer at least one of those concretely, do NOT include the item — generic
+"AI is advancing" news with no team-relevant angle does not belong here.
+
+Find 2-3 items — quality and relevance over volume. City field should always be 'BOTH'.
+For each return: headline (max 8 words), detail (max 12 words, what happened), why_it_matters
+(REQUIRED, max 15 words — one concrete, actionable takeaway for ResX: what to try, what it
+saves, or what to change; not "this could be useful" — name the specific action or saving),
+url (direct link if available), city.
+"""
+    return _run_news_research(prompt, "ai_product", exclude, seen_stories, holiday_hint)
+
+
+# ---------------------------------------------------------------------------
+# Step 3.5 — Flatten, merge/dedup, categorize, and rank into one story pool
+#
+# This is the piece that actually fixes stories duplicating across sections: no individual
+# research call above has visibility into what any other call found, so a restaurant opening
+# could surface independently via research_openings AND research_industry with zero
+# cross-awareness. edit_and_rank sees the whole pool at once and is the single place a
+# duplicate gets caught and collapsed.
+# ---------------------------------------------------------------------------
+
+def normalize_stories(new_opening_items: list, watching_candidate_items: list,
+                      industry_items: list, culture_items: list, ai_items: list) -> list:
+    """Flattens every research call's output into one pool. Openings/watching items already
+    carry category+id from research_openings; this fills in the same fields for the three
+    news-style lists, whose id is the source url (or a normalized-title fallback, mirroring
+    _story_entries' existing key logic) since they have no other stable identity."""
+    pool = list(new_opening_items) + list(watching_candidate_items)
+
+    for items, category in (
+        (industry_items, "industry"),
+        (culture_items, "culture"),
+        (ai_items, "ai_product"),
+    ):
+        for raw in items:
+            item = dict(raw)
+            item["category"] = category
+            item["id"] = item.get("url") or f"{category}::{item.get('headline', '')}"
+            pool.append(item)
+
+    return pool
+
+
+def _parse_editor_response(text: str, pool: list) -> list:
+    """Parses edit_and_rank's JSON response. On failure, falls back to a deterministic
+    pass-through — keep each item's research-assigned category, rank by original order —
+    so a bad editor-pass response never silently empties the whole digest."""
+    try:
+        clean = re.sub(r"```[a-z]*", "", text).strip().strip("`").strip()
+        start = clean.index("[")
+        data, _ = json.JSONDecoder().raw_decode(clean, start)
+        if isinstance(data, list) and data:
+            return data
+    except Exception as e:
+        print(f"Error parsing editor response: {e}")
+
+    print("Falling back to pass-through categorization (no merge/rerank this run)")
+    fallback = []
+    rank_counters = {}
+    for raw in pool:
+        item = dict(raw)
+        cat = item.get("category", "culture")
+        rank_counters[cat] = rank_counters.get(cat, 0) + 1
+        item["importance_rank"] = rank_counters[cat]
+        item.setdefault("merged_from", [])
+        fallback.append(item)
+    return fallback
+
+
+def edit_and_rank(pool: list, watching_context: list, holiday_hint: str = None) -> list:
+    """The single consolidation pass: merges duplicate entities researched independently
+    across calls, confirms/reassigns each story's final category, and ranks importance
+    within category."""
+    if not pool:
+        return []
+
+    pool_json = json.dumps(pool, indent=2)
+    watching_json = json.dumps(watching_context, indent=2) if watching_context else "[]"
+
+    prompt = f"""
+You are the final editor for the ResX restaurant-industry Slack digest. Below is the full pool
+of candidate stories researched for this issue — some may describe the same underlying
+restaurant, event, or entity from different angles (e.g. a chef opening a restaurant surfaced
+once as a "new_opening" and again as an "industry" story; a celebrity-at-a-restaurant story
+that also mentions the restaurant just opened).
+
+CANDIDATE STORIES (JSON):
+{pool_json}
+
+ALREADY TRACKED AS "WATCHING" from prior issues (context only — do not re-emit these, they
+are carried forward automatically; only use this to recognize when a NEW candidate above is
+actually the same restaurant, even if renamed or a qualifier like "(Williamsburg)" was dropped
+now that it's open):
+{watching_json}
+
+Do three things:
+
+1. MERGE DUPLICATES. If two or more candidates are fundamentally about the same underlying
+   restaurant/entity/event, merge them into ONE story — keep the single best title/summary
+   (prefer the more specific, more factual version; combine distinct facts from both if each
+   adds something the other lacks). A story must exist exactly once in your output. When
+   merging, prefer the MORE ACTIONABLE framing — e.g. if a "chef opening a new restaurant"
+   story appears both as an opening-style item and an industry-style item, merge into one
+   new_opening (or watching) entry, not an industry entry.
+
+2. ASSIGN FINAL CATEGORY — exactly one of: new_opening, watching, industry, culture, ai_product.
+   Rules, in priority order:
+   a. If a restaurant/hotel/bakery/bar/members-club etc. has OFFICIALLY OPENED (verifiably
+      taking reservations/walk-ins) -> new_opening.
+   b. Else if it's an ANNOUNCED-BUT-NOT-YET-OPEN restaurant (teaser, soft opening, confirmed
+      future launch) -> watching.
+   c. Items whose "origin" field is "pinned" keep their given category exactly as provided —
+      do not recategorize pinned items, only rank them.
+   d. For everything else, assign whichever of industry / culture / ai_product is the SINGLE
+      most actionable section for a ResX team member — i.e. which section someone would most
+      usefully look under. If a story plausibly fits two, pick the one where its PRIMARY
+      newsworthy angle lives (a chef's new restaurant business deal -> industry; the same
+      chef's restaurant being an Instagram-viral celebrity hangout -> culture). Never assign
+      the same story to two categories.
+
+3. RANK BY IMPORTANCE within each of industry/culture/ai_product: assign importance_rank 1..N
+   per category (1 = most important), based on specificity, relevance to a last-minute dining
+   reservation marketplace in NYC/London for 25-35 year olds, and whether the story has a
+   genuinely notable, concrete hook (not generic trend commentary). new_opening/watching items
+   don't need ranking — set importance_rank to 0 for those.
+
+Do not invent facts. Do not soften or genericize any story's summary/so_what/detail/why_it_matters
+— preserve the existing specificity and insider detail exactly as written.
+
+Return ONLY a valid JSON array, no markdown: every story object with all of its original fields
+preserved, plus "category" (final), "importance_rank" (int), and "merged_from" (list of the
+input ids that were merged into this story, [] if it wasn't a merge).
+"""
+
+    if holiday_hint:
+        prompt = f"CONTEXT FOR THIS RUN: {holiday_hint}\n\n" + prompt.lstrip()
+
+    result = call_anthropic(
+        messages=[{"role": "user", "content": prompt}],
+        system=(
+            "You are a meticulous editor. You never invent facts, never soften specific "
+            "details into generic ones, and never let the same story appear twice. "
+            "Return only a valid JSON array, no markdown."
+        ),
+        max_tokens=6000,
+    )
+
+    return _parse_editor_response(result, pool)
 
 
 # ---------------------------------------------------------------------------
@@ -786,20 +944,41 @@ def format_news_items(items: list) -> str:
     return "\n\n".join(lines)
 
 
+def format_ai_item(item: dict) -> str:
+    """Unlike format_news_items' compact inline so_what, AI & Product items render an
+    explicit, own-line 'Why it matters:' — a literal requirement for this section."""
+    headline = item.get("headline", "")
+    detail = item.get("detail", "")
+    why = item.get("why_it_matters") or item.get("so_what", "")
+    url = item.get("url", "")
+    headline_str = f"*{safe_link(url, headline)}*" if url else f"*{headline}*"
+    lines = [f"• {headline_str}"]
+    if detail:
+        lines.append(f"  {detail}")
+    if why:
+        lines.append(f"  *Why it matters:* {why}")
+    return "\n".join(lines)
+
+
+def format_ai_items(items: list) -> str:
+    return "\n\n".join(format_ai_item(item) for item in items)
+
+
 def build_slack_blocks(
     date_str: str,
-    nyc_data: dict,
-    london_data: dict,
-    watching: list,
-    hospitality: list,
-    industry: list,
-    landscape: list,
-    city_pulse: list,
-    specials: list,
-    ai_tech: list,
-    new_competitors: list,
+    stories: list,
     special_header: str = None,
+    new_competitors: list = None,
 ) -> list:
+    """Renders the 5-category digest from one unified, already-categorized/ranked story list
+    (see edit_and_rank) instead of 7 independently-researched parameter lists."""
+
+    new_openings = [s for s in stories if s.get("category") == "new_opening"]
+    watching     = [s for s in stories if s.get("category") == "watching"]
+    rank_key     = lambda s: s.get("importance_rank") or 999
+    industry     = sorted((s for s in stories if s.get("category") == "industry"), key=rank_key)
+    culture      = sorted((s for s in stories if s.get("category") == "culture"), key=rank_key)
+    ai_product   = sorted((s for s in stories if s.get("category") == "ai_product"), key=rank_key)
 
     blocks = []
 
@@ -822,29 +1001,16 @@ def build_slack_blocks(
         "type": "section",
         "text": {"type": "mrkdwn", "text": "*📍  NEW OPENINGS*"},
     })
-
-    if nyc_data.get("items"):
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
-        })
-        for item in nyc_data["items"]:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": format_opening_item(item)},
-            })
-
-    if london_data.get("items"):
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
-        })
-        for item in london_data["items"]:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": format_opening_item(item)},
-            })
-
+    nyc_new = [s for s in new_openings if s.get("city", "").upper() in ("NYC", "BOTH")]
+    ldn_new = [s for s in new_openings if s.get("city", "").upper() in ("LDN", "BOTH")]
+    if nyc_new:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*🗽  NYC*"}})
+        for item in nyc_new:
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_opening_item(item)}})
+    if ldn_new:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"}})
+        for item in ldn_new:
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_opening_item(item)}})
     blocks.append({"type": "divider"})
 
     # ── 🔭 Watching ─────────────────────────────────────────────────────────
@@ -853,81 +1019,45 @@ def build_slack_blocks(
             "type": "section",
             "text": {"type": "mrkdwn", "text": "*🔭  WATCHING*"},
         })
-        nyc_watch = [w for w in watching if w.get("city", "").upper() in ("NYC", "BOTH")]
-        ldn_watch  = [w for w in watching if w.get("city", "").upper() in ("LDN", "BOTH")]
+        nyc_watch = [s for s in watching if s.get("city", "").upper() in ("NYC", "BOTH")]
+        ldn_watch = [s for s in watching if s.get("city", "").upper() in ("LDN", "BOTH")]
         if nyc_watch:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
-            })
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*🗽  NYC*"}})
             for item in nyc_watch:
-                blocks.append({
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": format_opening_item(item)},
-                })
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_opening_item(item)}})
         if ldn_watch:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
-            })
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"}})
             for item in ldn_watch:
-                blocks.append({
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": format_opening_item(item)},
-                })
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": format_opening_item(item)}})
         blocks.append({"type": "divider"})
 
-    # ── 2. Hospitality ──────────────────────────────────────────────────────
-    if hospitality:
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": safe_text(f"*🌟  HOSPITALITY*\n\n{format_news_items(hospitality)}")},
-        })
-        blocks.append({"type": "divider"})
-
-    # ── 3. Industry ─────────────────────────────────────────────────────────
-    if industry:
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": safe_text(f"*🏢  INDUSTRY*\n\n{format_news_items(industry)}")},
-        })
-        blocks.append({"type": "divider"})
-
-    # ── 4. Landscape ────────────────────────────────────────────────────────
-    if landscape or new_competitors:
-        landscape_text = format_news_items(landscape) if landscape else ""
+    # ── 2. Industry & Competitor Watch ──────────────────────────────────────
+    if industry or new_competitors:
+        industry_text = format_news_items(industry) if industry else ""
         if new_competitors:
             comp_str = ", ".join(new_competitors)
             new_comp_block = f"\n\n*New competitor spotted:* {comp_str}"
-            landscape_text = (landscape_text + new_comp_block).strip()
-        if landscape_text:
+            industry_text = (industry_text + new_comp_block).strip()
+        if industry_text:
             blocks.append({
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": safe_text(f"*🗺️  LANDSCAPE*\n\n{landscape_text}")},
+                "text": {"type": "mrkdwn", "text": safe_text(f"*🏢  INDUSTRY & COMPETITOR WATCH*\n\n{industry_text}")},
             })
             blocks.append({"type": "divider"})
 
-    # ── 5. City Pulse ───────────────────────────────────────────────────────
-    if city_pulse:
+    # ── 3. City & Culture ────────────────────────────────────────────────────
+    if culture:
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": safe_text(f"*🏙️  CITY PULSE*\n\n{format_news_items(city_pulse)}")},
+            "text": {"type": "mrkdwn", "text": safe_text(f"*🏙️  CITY & CULTURE*\n\n{format_news_items(culture)}")},
         })
         blocks.append({"type": "divider"})
 
-    # ── 6. Specials & Collabs ───────────────────────────────────────────────
-    if specials:
+    # ── 4. AI & Product ──────────────────────────────────────────────────────
+    if ai_product:
         blocks.append({
             "type": "section",
-            "text": {"type": "mrkdwn", "text": safe_text(f"*✨  SPECIALS & COLLABS*\n\n{format_news_items(specials)}")},
-        })
-        blocks.append({"type": "divider"})
-
-    # ── 7. AI & Tech ────────────────────────────────────────────────────────
-    if ai_tech:
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": safe_text(f"*🤖  AI & TECH*\n\n{format_news_items(ai_tech)}")},
+            "text": {"type": "mrkdwn", "text": safe_text(f"*🤖  AI & PRODUCT*\n\n{format_ai_items(ai_product)}")},
         })
 
     blocks.append({"type": "divider"})
@@ -958,9 +1088,20 @@ def _story_entries(items: list, today_iso: str) -> list:
             "key": key, "date": today_iso,
             "headline": item.get("headline", ""),
             "detail": item.get("detail", ""),
-            "so_what": item.get("so_what", ""),
+            "so_what": item.get("so_what") or item.get("why_it_matters", ""),
         })
     return entries
+
+
+def _pinned_to_story(pin: dict) -> dict:
+    """Converts a manually pinned story into the common pool shape. Category is treated as
+    authoritative by edit_and_rank's prompt (see the "origin" == "pinned" rule) — pins get
+    ranked alongside everything else researched this run, never recategorized."""
+    story = {k: v for k, v in pin.items() if k != "section"}
+    story["category"] = pin.get("section", "culture")
+    story["origin"] = "pinned"
+    story["id"] = story.get("url") or f"pinned::{story.get('headline', '')}"
+    return story
 
 
 def main():
@@ -1015,72 +1156,59 @@ def main():
         print("Researching London openings...")
         london_result = research_openings("london", seen_openings, watching)
 
-        nyc_data    = nyc_result.get("just_opened", {"items": [], "ugc": []})
-        london_data = london_result.get("just_opened", {"items": [], "ugc": []})
+        nyc_data    = nyc_result.get("just_opened", {"items": []})
+        london_data = london_result.get("just_opened", {"items": []})
 
-        # Graduate watching items that have now opened
-        opened_names = {
-            i["name"].lower()
-            for i in nyc_data.get("items", []) + london_data.get("items", [])
+        # Deterministic graduation — carried forward untouched, guarantees the hard
+        # "must disappear from Watching" requirement regardless of the editor pass below.
+        opened_ids = {i["id"] for i in nyc_data.get("items", []) + london_data.get("items", [])}
+        watching_carried = [
+            w for w in watching
+            if w.get("id", normalize_identity(w.get("name", ""), w.get("city", ""))) not in opened_ids
+        ]
+        carried_ids = {
+            w.get("id", normalize_identity(w.get("name", ""), w.get("city", "")))
+            for w in watching_carried
         }
-        watching = [w for w in watching if w["name"].lower() not in opened_names]
 
-        # Merge new coming_soon items (deduplicated by name)
-        watching_names = {w["name"].lower() for w in watching}
-        for item in nyc_result.get("coming_soon", []) + london_result.get("coming_soon", []):
-            if item["name"].lower() not in watching_names:
-                watching.append(item)
-                watching_names.add(item["name"].lower())
+        # Only genuinely NEW coming_soon candidates enter the pool for editing/dedup — everything
+        # already tracked is carried forward untouched, never re-derived from what the editor
+        # pass happens to re-emit this run (which would silently drop untouched entries).
+        new_watching_candidates = [
+            item for item in (nyc_result.get("coming_soon", []) + london_result.get("coming_soon", []))
+            if item["id"] not in carried_ids
+        ]
 
-        print("Researching hospitality...")
-        hospitality = research_section("hospitality", seen_stories=recent_stories, holiday_hint=holiday_hint)
-        used = list(hospitality)
+        print("Researching industry & competitor watch...")
+        industry_items = research_industry(competitors, seen_stories=recent_stories, holiday_hint=holiday_hint)
 
-        print("Researching industry...")
-        industry = research_section("industry", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
-        used += industry
+        print("Researching city & culture...")
+        culture_items = research_culture(exclude=industry_items, seen_stories=recent_stories, holiday_hint=holiday_hint)
 
-        print("Researching landscape...")
-        landscape = research_section("landscape", competitors, exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
-        used += landscape
-
-        print("Researching city pulse...")
-        city_pulse = research_section("city_pulse", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
-        used += city_pulse
-
-        print("Researching specials & collabs...")
-        specials = research_section("specials", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
-        used += specials
-
-        print("Researching AI & tech...")
-        ai_tech = research_section("ai_tech", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
-
-        # Inject pinned stories into their target sections
-        section_map = {
-            "hospitality": hospitality,
-            "industry":    industry,
-            "landscape":   landscape,
-            "city_pulse":  city_pulse,
-            "specials":    specials,
-            "ai_tech":     ai_tech,
-        }
-        for pin in pinned:
-            target_key = pin.get("section", "city_pulse")
-            target = section_map.get(target_key)
-            if target is not None:
-                target.append({k: v for k, v in pin.items() if k != "section"})
-                print(f"Pinned story injected into {target_key!r}: {pin.get('headline', '')}")
-
-        # Update seen openings
-        new_names = (
-            [item["name"] for item in nyc_data.get("items", [])]
-            + [item["name"] for item in london_data.get("items", [])]
+        print("Researching AI & product...")
+        ai_items = research_ai_product(
+            exclude=industry_items + culture_items, seen_stories=recent_stories, holiday_hint=holiday_hint
         )
-        seen_openings.update(new_names)
+
+        pool = normalize_stories(
+            nyc_data.get("items", []) + london_data.get("items", []),
+            new_watching_candidates, industry_items, culture_items, ai_items,
+        )
+        for pin in pinned:
+            print(f"Pinned story queued for {pin.get('section', 'culture')!r}: {pin.get('headline', '')}")
+        pool += [_pinned_to_story(p) for p in pinned]
+
+        print(f"Editing & ranking {len(pool)} candidate stories...")
+        final_stories = edit_and_rank(pool, watching_context=watching_carried, holiday_hint=holiday_hint)
+
+        new_opening_stories = [s for s in final_stories if s.get("category") == "new_opening"]
+        watching = watching_carried + [s for s in final_stories if s.get("category") == "watching"]
+        seen_openings.update(s["name"] for s in new_opening_stories if s.get("name"))
 
         # Save cross-run story history (keep last 30 days to cap file size)
         new_story_entries = _story_entries(
-            hospitality + industry + landscape + city_pulse + specials + ai_tech, today_iso
+            [s for s in final_stories if s.get("category") in ("industry", "culture", "ai_product")],
+            today_iso,
         )
         keep_cutoff = (today - datetime.timedelta(days=30)).isoformat()
         all_stories = [e for e in seen_stories_raw if e.get("date", "") >= keep_cutoff] + new_story_entries
@@ -1088,17 +1216,9 @@ def main():
         print("Building Slack blocks...")
         blocks = build_slack_blocks(
             date_str=today_str,
-            nyc_data=nyc_data,
-            london_data=london_data,
-            watching=watching,
-            hospitality=hospitality,
-            industry=industry,
-            landscape=landscape,
-            city_pulse=city_pulse,
-            specials=specials,
-            ai_tech=ai_tech,
-            new_competitors=new_competitors,
+            stories=final_stories,
             special_header=special_header,
+            new_competitors=new_competitors,
         )
 
         print(f"Posting to Slack... ({len(blocks)} blocks)")
