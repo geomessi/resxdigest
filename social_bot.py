@@ -1,9 +1,17 @@
 """
 ResX Social Bot
-Runs daily via GitHub Actions. Finds specific, real, repostable social opportunities
-(Instagram reels / TikToks, carousel ideas backed by real posts, trending audio) for
-NYC and London and posts them to #social for the team to repost. Quality over quantity —
-some days may have few or no opportunities.
+Runs daily via GitHub Actions, posts to #social. A social media editor, not a hospitality
+newsletter: every item answers "what should ResX post today", never "what happened today."
+
+Every opportunity is exactly one of three buckets:
+  1. REPOST     — one specific, direct post-level link (IG post/reel, TikTok, X, Threads)
+  2. POST_IDEA  — a concrete, immediately executable idea backed by 2+ real linked posts
+  3. TRENDING_AUDIO — song + artist + link only, no explanation
+
+No generated captions/comments/copy — the bot surfaces opportunities and real links, the
+team writes their own words. A hard, deterministic gate (validate_post_urls) rejects any
+repost/post_idea lacking a real post-level URL — missing is better than wrong. Quality over
+quantity — some days may have few or no opportunities.
 """
 
 import os
@@ -115,10 +123,10 @@ def research_ugc(seen_urls: set, seen_subjects: set, seen_songs: set, pinned_lea
     )
 
     prompt = f"""
-You are a social media strategist for ResX — a last-minute restaurant reservation app for
-25-35 year olds in NYC and London. Each morning you send the team the highest-leverage social
-opportunities for today. This is not a news summary of what's happening in NYC/London — every
-item must be something that makes the team think "we should post this right now."
+You are a social media editor for ResX — a last-minute restaurant reservation app for 25-35
+year olds in NYC and London — not a hospitality newsletter writer. The question you're
+answering every morning is "what should ResX post today?" — never "what happened today?"
+You spend all day on Instagram and TikTok and have incredible taste.
 
 Target audience vibe (use as calibration only, do NOT cite): {signal}
 
@@ -127,13 +135,11 @@ Today is {datetime.date.today().strftime("%A, %B %d, %Y")}. Search for content f
 soft-opened yesterday, announced this morning) over stuff that's already fully saturated or that
 you'd only know about from an old article.
 
-Before including anything, all four must be true:
-1. Would this make someone stop scrolling?
-2. Does our audience actually care?
-3. Would waiting until tomorrow make it stale?
-4. Can the team execute this in under 15 minutes?
-If not, drop it. QUALITY OVER QUANTITY — 5 exceptional opportunities beats 25 mediocre ones.
-It's completely fine to return fewer than usual, even 0, on a quiet day. Never pad the list.
+Before including anything, ask: would this feel native on Instagram Stories today? If not, skip
+it. Every item should make the team think "I wish we'd thought of that." If it doesn't create
+that reaction, don't include it. QUALITY OVER QUANTITY — 5 exceptional opportunities beats 25
+mediocre ones. It's completely fine to return fewer than usual, even 0, on a quiet day. Never
+pad the list.
 
 PINNED LEADS — HIGHEST PRIORITY. Georgia has manually flagged these links/topics. Research each
 one and build a real opportunity around it (find the actual specific post(s) behind it if it's
@@ -142,43 +148,37 @@ a bare topic). Every pinned lead below MUST end up either as an opportunity with
 "pinned_rejected" with the exact "pinned_input" text and a reason — never just omit one
 silently. Only reject a pinned lead for one of: it's a duplicate of something already featured
 (see the "already featured" lists below), it's genuinely irrelevant to ResX's audience/brand, or
-you cannot find any real content behind it. Pinned leads are NOT subject to the stop-scrolling
-gate above or the scoring rubric below — Georgia already decided they're worth including.
+you cannot find any real content behind it. Pinned leads are exempt from the "would this feel
+native" gate and the scoring rubric below — Georgia already decided they're worth including —
+but NOT exempt from needing a real, direct, post-level link (see below); a pinned lead you can't
+back with a valid post link still gets rejected with reason "no_content_found".
 
 Pinned leads to address:
 {pinned_str}
 
-PRIORITIZE IN THIS ORDER:
-- Tier 1 (should be most of the list): celebrity sightings (dining, spotted somewhere, viral
-  date nights), pop-culture moments the team could tie a restaurant/going-out angle to (award
-  shows, viral sports moments, reality TV, major concerts, TikTok drama), restaurants suddenly
-  everyone wants (viral TikTok spot, impossible reservation, secret menu, one-week collab/pop-up).
-- Tier 2 (secondary): FOMO-inducing openings and activations (rooftop, hotel, luxury brand café,
-  fan villages, food festivals, weekend-only experiences).
-- Tier 3 (rare, only with an obvious ResX angle): lifestyle moments (heatwave, marathon, Pride,
-  holiday weekends, first day of outdoor dining).
+BEST SOURCES: creators, restaurants, hotels, hospitality brands, food creators, city creators,
+lifestyle creators, fashion creators, sports creators, pop culture creators. This is the feed of
+someone who spends all day on Instagram and TikTok, not a trade publication. Actively search for
+what these accounts are ALREADY posting and discussing — a collaboration or moment that's
+blowing up on social but hasn't been written up anywhere yet is exactly what you should surface.
 
-PREDICTIVE LOCATION-BASED CONTENT — a specific Tier 1 pattern worth actively watching for.
-If you find a post (real estate, gossip, paparazzi, etc.) revealing where a celebrity or
-notable couple lives, is moving to, or was recently spotted near — a specific address or
-tight neighborhood, not just "NYC" — research 3 REAL, SPECIFIC, currently-open restaurants/
-bars in that exact neighborhood the couple/celebrity would plausibly be spotted at. Build
-this as a carousel: idea names the person/couple and the neighborhood (e.g. "[couple] just
-moved to the West Village — 3 spots they'll probably be spotted at"), backed by 3 real posts,
-one per restaurant, each with its own link — never guess at restaurants, search for and
-confirm real spots actually in that specific area. The trigger is a real-estate/location
-reveal; the payoff is a concrete, personalized, neighborhood-anchored carousel — not a vague
-"they'll probably eat well" comment.
-
-ALSO look for "internet's winners" — a genuinely great post from an adjacent hospitality, hotel,
-travel, city-guide, or lifestyle account that makes you think "damn, I wish we'd made that." Not
-something to repost as ResX's own content — creative inspiration for the team, tagged as `inspo`.
-
-SOURCE QUALITY: prioritize Instagram Reels, TikTok, X, Threads, and posts from creator/
-restaurant/hotel/brand/celebrity accounts. Do NOT send generic news articles, press releases,
-tourism sites, event calendars, or "things to do this weekend" listicles — unless the article
-itself IS the story. If a real-world moment is worth surfacing but you can't find an actual
-specific post about it, DROP IT rather than report it with only an article link.
+WHAT'S WORTH LOOKING FOR (this shapes what you search for, but every single result still has to
+come out the other side as one of the three buckets below — no exceptions):
+- Celebrity sightings, viral date nights, restaurants suddenly everyone wants (viral TikTok spot,
+  impossible reservation, secret menu, one-week collab/pop-up) — the majority of what you find.
+- FOMO-inducing openings and activations (rooftop, hotel, luxury brand café, fan villages, food
+  festivals, weekend-only experiences).
+- Rarely, only with an obvious ResX angle: lifestyle moments (heatwave, marathon, Pride, holiday
+  weekends, first day of outdoor dining).
+- Predictive, location-based content: if a post (real estate, gossip, paparazzi, etc.) reveals
+  where a celebrity or notable couple lives, is moving to, or was recently spotted near — a
+  specific address or tight neighborhood, not just "NYC" — that's the trigger for a POST_IDEA:
+  research 3 real, specific, currently-open restaurants/bars in that exact neighborhood they'd
+  plausibly be spotted at next. Never guess at restaurants — search for and confirm real spots
+  actually in that area.
+- A genuinely great post from an adjacent hospitality/hotel/travel/lifestyle account that makes
+  you think "damn, I wish we'd made that" — surface it as a REPOST or the seed of a POST_IDEA,
+  never invent new content around it that isn't there.
 
 LINK ACCURACY IS CRITICAL. Only use a URL you actually retrieved from a web_search result —
 never construct, guess, paraphrase, autocomplete, or recall a URL from memory. Before including
@@ -196,26 +196,40 @@ Restaurants/venues/topics already featured in the last 7 days — do not repeat 
 Songs already featured in the last 7 days — do not reuse these:
 {songs_str}
 
-Every opportunity needs a concrete action. Do NOT write captions, comments, or hooks — just
-identify the opportunity, its type, and the real link(s). The team writes their own copy.
-Six action types:
-- repost: one specific post (reel/TikTok) worth reposting as-is. Needs: post_url, creator
-  (handle/name), creator_url (optional link to their account).
-- carousel: an original idea built from several real existing posts, one per slide — only
-  valid if every slide has a real post behind it. Needs: slides (2+ entries, each
-  {{"label": "...", "url": "..."}}).
-- story: one specific reel/post worth reposting to Story specifically. Needs: post_url.
-- comment: a brand/account post worth engaging via comment (no comment text — just what to
-  comment on). Needs: target_url, target_label (whose post / what it is).
-- meme: a meme format or trend taking over that ResX could participate in. Needs:
-  reference_url (optional — the origin post/template, if findable).
-- inspo: a great post from an adjacent account, for creative inspiration only. Needs:
-  source_url, creator, creator_url (optional).
+EVERY ITEM IS EXACTLY ONE OF THREE BUCKETS. No other shape is valid — if something doesn't
+cleanly fit one of these three, drop it rather than force it in.
 
-Bad (vague, no real posts behind it): "carousel: 'before the match. after the match. the table
-in between.' fan village just opened, final july 19"
-Good (real idea, backed by specific linked posts): a carousel titled "5 most-viral ice cream
-spots in nyc right now," backed by 5 actual posts, one per spot, each with its own link.
+1. REPOST — a specific Instagram Reel, Instagram post, TikTok, X post, or Threads post ResX
+   could repost to Stories today.
+   - post_url: REQUIRED, must link DIRECTLY to the post itself.
+   - NEVER a profile link. NEVER a restaurant website. NEVER an article. NEVER a guide or
+     directory. If you can't find a specific post behind a real moment, skip the item entirely
+     — do not report it with only an article or account link.
+   - creator_url: optional, the account's profile, for attribution only — this does not count
+     as satisfying the post_url requirement.
+
+2. POST_IDEA — a concrete piece of content ResX could create TODAY. Extremely specific and
+   immediately executable — someone on the team should be able to make it without researching
+   anything else.
+   Bad (too vague to execute): "Restaurant opened."
+   Good: "It's 95° in NYC. Make a carousel of the 5 ice cream shops everyone is posting this
+   week." — backed by the 5 specific Instagram posts, the 5 restaurant accounts, and why each
+   post belongs.
+   Good: "Everyone is posting from the Rockefeller Fan Village today." — backed by 4-6 specific
+   Reels, links to every Reel, and exactly what the carousel/Story should cover.
+   - posts: 2+ entries, each {{"post_url": "the exact post/Reel link — required, same strict
+     rules as REPOST above", "account_url": "optional, the creator/restaurant's profile, for
+     attribution only", "why": "one short, factual reason this specific post belongs in the set
+     — a curation reason, NOT a caption (e.g. 'most-viewed of the bunch as of this morning' is
+     right, a suggested caption is wrong)"}}.
+   - Never invent or pad the list to hit a number. 2 rock-solid real posts beats 5 where 3 are
+     guesses.
+
+3. TRENDING_AUDIO (returned separately, see below) — song/sound only, no explanation.
+
+THE BOT NEVER WRITES CAPTIONS, COMMENTS, OR SOCIAL COPY. Its job is to surface opportunities,
+not create content — the team always writes their own words. "why" in POST_IDEA is a curation
+reason, never a caption suggestion.
 
 For every opportunity also return:
 - headline: what it is, one line, brand voice, no caption copy. Max 10 words.
@@ -251,13 +265,16 @@ Do NOT include any of these URLs which have already been sent:
 Return ONLY a valid JSON object, no markdown:
 {{
   "opportunities": [
-    {{"type": "repost|carousel|story|comment|meme|inspo", "origin": "researched|pinned",
-      "pinned_input": "...", "headline": "...", "subject": "...", "city": "...",
+    {{"type": "repost", "origin": "researched|pinned", "pinned_input": "...", "headline": "...",
+      "subject": "...", "city": "...",
       "scores": {{"freshness": 1, "cultural_relevance": 1, "resx_relevance": 1,
                   "source_quality": 1, "actionability": 1}},
-      "post_url": "...", "creator": "...", "creator_url": "...",
-      "slides": [{{"label": "...", "url": "..."}}], "target_url": "...", "target_label": "...",
-      "reference_url": "...", "source_url": "..."}}
+      "post_url": "...", "creator_url": "..."}},
+    {{"type": "post_idea", "origin": "researched|pinned", "pinned_input": "...", "headline": "...",
+      "subject": "...", "city": "...",
+      "scores": {{"freshness": 1, "cultural_relevance": 1, "resx_relevance": 1,
+                  "source_quality": 1, "actionability": 1}},
+      "posts": [{{"post_url": "...", "account_url": "...", "why": "..."}}]}}
   ],
   "audio": [
     {{"song": "...", "artist": "...", "url": "..."}}
@@ -276,13 +293,18 @@ pinned items.
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
-            "You are a culturally plugged-in social media strategist writing for ResX — "
-            "a NYC and London restaurant reservation app. Brand voice: insider, cool girl, "
-            "lowercase, like a friend texting a tip. Never try-hard, never corporate, never "
-            "AI-sounding. Specific cultural references over generic ones. "
-            "Brevity is the brand voice — cut every word that isn't load-bearing. "
-            "You surface opportunities and real links — you never write captions, comments, "
-            "or hooks; that's for the team. "
+            "You are a social media editor for ResX — a NYC and London restaurant reservation "
+            "app — not a hospitality news writer. You spend all day on Instagram and TikTok "
+            "and have incredible taste. Your job is to find what ResX should POST today, "
+            "never to summarize what happened today. "
+            "Every item is exactly one of two shapes: repost or post_idea — plus trending "
+            "audio, returned separately. Nothing else is valid. "
+            "A repost or post_idea is worthless without a real, direct, post-level link — "
+            "never a profile, website, article, or guide. Missing is better than wrong: if "
+            "you can't find a specific post, drop the item. "
+            "You never write captions, comments, or social copy — you surface opportunities "
+            "and real links; the team writes their own words. A 'why' field is a curation "
+            "reason, never a caption. "
             "Every opportunity must be backed by real, specific, existing posts you actually "
             "found — never invent a concept with nothing behind it. "
             "Accuracy matters more than coverage: only cite a URL you actually got back from "
@@ -314,9 +336,67 @@ pinned items.
 
 
 def urls_in_item(item: dict) -> list:
-    urls = [item[k] for k in ("post_url", "target_url", "reference_url", "source_url") if item.get(k)]
-    urls += [s["url"] for s in item.get("slides", []) or [] if s.get("url")]
+    urls = [item[k] for k in ("post_url", "creator_url") if item.get(k)]
+    urls += [p[k] for p in item.get("posts", []) or [] for k in ("post_url", "account_url") if p.get(k)]
     return urls
+
+
+# A repost/post_idea link must point directly at a specific post, never a profile, website,
+# article, or directory. This is a hard, deterministic gate — never trust prompt compliance
+# alone for a rule this strict. "Missing is better than wrong."
+POST_URL_PATTERNS = [
+    re.compile(r"^https?://(www\.)?instagram\.com/p/[\w-]+"),
+    re.compile(r"^https?://(www\.)?instagram\.com/reel/[\w-]+"),
+    re.compile(r"^https?://(www\.)?tiktok\.com/@[\w.\-]+/video/\d+"),
+    re.compile(r"^https?://(www\.)?(x|twitter)\.com/[\w]+/status/\d+"),
+    re.compile(r"^https?://(www\.)?threads\.(net|com)/@[\w.\-]+/post/[\w]+"),
+]
+
+
+def is_valid_post_url(url: str) -> bool:
+    """True only for a direct post-level URL (Instagram post/reel, TikTok video, X status,
+    Threads post). False for a profile, website, article, newsletter, or city guide — even
+    if that URL is live and resolves fine. Link validity and link *shape* are separate checks."""
+    if not url:
+        return False
+    return any(p.match(url.strip()) for p in POST_URL_PATTERNS)
+
+
+def validate_post_urls(items: list, today_iso: str, source_type: str) -> tuple:
+    """Deterministic backstop for the strict post-level-URL requirement. A repost with no
+    valid post URL, or a post_idea left with fewer than 2 valid posts after filtering out
+    bad links, is dropped and logged rather than posted with a wrong or missing link."""
+    kept = []
+    skips = []
+    for item in items:
+        if item.get("type") == "repost":
+            url = item.get("post_url", "")
+            if is_valid_post_url(url):
+                kept.append(item)
+            else:
+                skips.append({
+                    "date": today_iso, "subject": item.get("subject", ""), "url": url,
+                    "reason": "invalid_post_url",
+                    "detail": f"repost post_url {url!r} is not a direct post-level link",
+                    "source_type": source_type,
+                })
+        elif item.get("type") == "post_idea":
+            valid_posts = [p for p in item.get("posts", []) or [] if is_valid_post_url(p.get("post_url", ""))]
+            if len(valid_posts) >= 2:
+                item = dict(item)
+                item["posts"] = valid_posts
+                kept.append(item)
+            else:
+                first_url = (item.get("posts") or [{}])[0].get("post_url", "")
+                skips.append({
+                    "date": today_iso, "subject": item.get("subject", ""), "url": first_url,
+                    "reason": "insufficient_valid_posts",
+                    "detail": f"only {len(valid_posts)} valid post-level link(s) found, need at least 2",
+                    "source_type": source_type,
+                })
+        else:
+            kept.append(item)
+    return kept, skips
 
 
 def avg_score(item: dict) -> float:
@@ -435,49 +515,36 @@ def dedupe_audio(audio: list) -> list:
 
 
 def format_ugc_item(item: dict) -> str:
+    """Exactly two shapes now: repost (one direct post link) and post_idea (2+ real posts,
+    each with an optional attribution link and a short curation reason). No other type is
+    valid — see validate_post_urls for the hard gate that guarantees this at posting time."""
     item_type = item.get("type", "repost")
     headline  = item.get("headline", "")
     city      = item.get("city", "BOTH").upper()
     tag       = f"→ {item_type.upper()}  ·  {city}"
     header    = f"{tag}\n*{headline}*"
 
-    if item_type == "carousel":
+    if item_type == "post_idea":
         lines = [header]
-        for slide in item.get("slides", []) or []:
-            label = slide.get("label", "")
-            url   = slide.get("url", "")
-            if url:
-                lines.append(f"  •  {safe_link(url, label or 'open')}")
+        for post in item.get("posts", []) or []:
+            post_url    = post.get("post_url", "")
+            account_url = post.get("account_url", "")
+            why         = post.get("why", "")
+            if not post_url:
+                continue
+            line = f"  •  {safe_link(post_url, 'post')}"
+            if account_url:
+                line += f"  ·  {safe_link(account_url, 'account')}"
+            if why:
+                line += f"  — {why}"
+            lines.append(line)
         return "\n".join(lines)
-
-    if item_type == "story":
-        url = item.get("post_url", "")
-        link_str = f"  {safe_link(url, 'reel')}" if url else ""
-        return f"{header}{link_str}"
-
-    if item_type == "comment":
-        url   = item.get("target_url", "")
-        label = item.get("target_label", "post")
-        link_str = f"  {safe_link(url, label)}" if url else ""
-        return f"{header}{link_str}"
-
-    if item_type == "meme":
-        url = item.get("reference_url", "")
-        link_str = f"  {safe_link(url, 'reference')}" if url else ""
-        return f"{header}{link_str}"
-
-    if item_type == "inspo":
-        url        = item.get("source_url", "")
-        creator_url = item.get("creator_url", "")
-        link_str    = f"  {safe_link(url, 'post')}" if url else ""
-        creator_str = f"  ·  {safe_link(creator_url, 'creator')}" if creator_url else ""
-        return f"{header}{link_str}{creator_str}"
 
     # repost (default)
     url         = item.get("post_url", "")
     creator_url = item.get("creator_url", "")
-    link_str    = f"  {safe_link(url, 'reel')}" if url else ""
-    creator_str = f"  ·  {safe_link(creator_url, 'creator')}" if creator_url else ""
+    link_str    = f"  {safe_link(url, 'post')}" if url else ""
+    creator_str = f"  ·  {safe_link(creator_url, 'account')}" if creator_url else ""
     return f"{header}{link_str}{creator_str}"
 
 
@@ -603,6 +670,11 @@ def main():
             continue
         researched_kept.append(item)
 
+    # Hard gate: strict post-level URL validation, regardless of origin — missing is better
+    # than wrong. A pinned lead with no valid post link still gets rejected here.
+    pinned_kept, pinned_url_skips = validate_post_urls(pinned_kept, today_iso, source_type="pinned")
+    researched_kept, researched_url_skips = validate_post_urls(researched_kept, today_iso, source_type="researched")
+
     # Model's own self-reported misses
     considered_rejected_log = [
         {
@@ -615,7 +687,10 @@ def main():
     # Diversity cap: 1 item per subject per digest, pinned wins any conflict
     final_items, diversity_skips = apply_diversity(pinned_kept + researched_kept, today_iso)
 
-    new_skip_entries = pinned_skips + score_skips + considered_rejected_log + diversity_skips
+    new_skip_entries = (
+        pinned_skips + score_skips + pinned_url_skips + researched_url_skips
+        + considered_rejected_log + diversity_skips
+    )
     print(
         f"Publishing {len(final_items)} opportunities "
         f"({len(pinned_kept)} pinned, {len(final_items) - len(pinned_kept)} researched); "
