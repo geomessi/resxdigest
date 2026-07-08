@@ -61,15 +61,17 @@ LONDON_SIGNAL_ACCOUNTS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Seed competitor list
+# Seed competitor list — actual competitor/platform names for the dedicated Competitor Watch
+# (research_competitor_watch). Deliberately excludes pure editorial/media outlets like Eater,
+# The Infatuation, and Hot Dinners — those are sources to research FROM (see SOURCES below),
+# not competitors to track.
 # ---------------------------------------------------------------------------
 SEED_COMPETITORS = [
-    "Appointment Trader", "Dorsia", "Diibs", "Quenelle", "Table Agent",
-    "Resy Notify", "OpenTable Notify",
-    "Tock", "Blackbird", "The Infatuation", "Eater",
+    "Dorsia", "Appointment Trader", "Cita Marketplace", "Access by Resy",
+    "Blackbird", "Beli", "OpenTable", "Resy", "SevenRooms", "Tock",
+    "Dojo", "Dinova", "Diibs", "Quenelle", "Table Agent",
+    "DesignMyNight", "The Spot",
     "reservation scalper bots", "Telegram reservation groups",
-    "DesignMyNight", "Hot Dinners",
-    "The Spot",
 ]
 
 # ---------------------------------------------------------------------------
@@ -469,6 +471,7 @@ You are researching restaurant openings in {city_label} for a weekly digest aime
 at ResX — a last-minute restaurant reservation marketplace for 25-35 year olds in NYC and London.
 
 Use these sources: {', '.join(sources)}
+{_source_priority_instruction()}
 
 As a vibe calibration, the target audience is similar to followers of these accounts
 (use as signal only, do NOT cite them): {', '.join(signal_accounts)}
@@ -561,6 +564,31 @@ def _city_label_instruction() -> str:
     return "For each item, also include a 'city' field: either 'NYC', 'LDN', or 'BOTH'."
 
 
+def _source_priority_instruction() -> str:
+    """Optimize for signal, not completeness — the digest's job is to make sure nobody says
+    "wait...how did we miss that?" A newsletter roundup that only cites editorial coverage
+    misses things that are already everywhere on restaurant/brand/creator accounts days before
+    any outlet writes them up. Search in roughly this priority order:"""
+    return """
+SOURCE PRIORITY — discovery order (most important first):
+1. Restaurant accounts (the venue's own official account)
+2. Hotel accounts
+3. Hospitality brand accounts (drink/food brands doing collabs, activations, product drops)
+4. Food creator accounts (food bloggers, food TikTok/IG creators covering the scene)
+5. Hospitality creator accounts (industry insiders, behind-the-scenes hospitality creators)
+6. Restaurant group accounts (the parent group/company behind multiple venues)
+7. Hospitality newsletters (Feed Me, Emily Sundberg, etc.)
+8. Industry publications (Eater, The Infatuation, Time Out, etc.)
+9. General news
+
+Actively search for what restaurant, hotel, brand, and creator accounts are ALREADY posting
+about and discussing — a collaboration or product drop that's blowing up on social but hasn't
+been written up by a publication yet is EXACTLY what you should surface, not skip. Do not wait
+for editorial coverage to confirm something is real — if the restaurant/brand account itself
+posted it, or a food/hospitality creator is already covering it, that is a real, valid, citable
+source on its own."""
+
+
 def _build_exclude_instruction(exclude: list) -> str:
     """Stories already surfaced by another research call THIS run — sequential, same-run dedup."""
     if not exclude:
@@ -637,28 +665,64 @@ def _run_news_research(prompt: str, label: str, exclude: list, seen_stories: lis
         return []
 
 
-def research_industry(competitors: list = None, exclude: list = None,
-                       seen_stories: list = None, holiday_hint: str = None) -> list:
-    """Industry & Competitor Watch. Returns list of dicts: {headline, detail, so_what, url, city}"""
+def research_competitor_watch(competitors: list = None, seen_stories: list = None,
+                               holiday_hint: str = None) -> list:
+    """Dedicated Competitor Watch — a mandatory per-name check, not a generic industry-news
+    scan. Returns list of dicts: {headline, detail, so_what, url, city}, each tagged
+    is_competitor_watch=True so the renderer can give it its own sub-heading."""
     comp_str = ", ".join(competitors or SEED_COMPETITORS)
+
+    prompt = f"""
+You are running ResX's dedicated Competitor Watch. This is a mandatory check on named
+competitors, not a general industry news scan — check EACH of the following companies by name
+for news from the past week: {comp_str}
+
+For each one, specifically check whether it has:
+- Launched (new product, new app, new feature)
+- Expanded to a new city
+- Raised funding
+- Been acquired, or acquired someone else
+- Announced a partnership
+- Made an executive hire (CEO/CTO/Head of X, etc.)
+- Made a major strategy change (pivot, repositioning, new business model)
+
+If a competitor made a real, confirmed announcement in ANY of these categories in the past
+week, it MUST be included — do not skip or omit a real development just to keep the list
+short. This is the one section where completeness on the named list matters more than
+brevity; if you find 6 genuine competitor developments, return all 6. If you find nothing
+concrete for a given competitor, simply don't include them — never pad with speculation or
+generic "no news" filler.
+
+{_city_label_instruction()}
+For each return: headline (max 8 words, name the competitor), detail (max 15 words — the
+specific development), so_what (max 12 words — why this matters for ResX's competitive
+position), url (direct link if available), city.
+"""
+    items = _run_news_research(prompt, "competitor_watch", None, seen_stories, holiday_hint)
+    for item in items:
+        item["is_competitor_watch"] = True
+    return items
+
+
+def research_industry(exclude: list = None, seen_stories: list = None, holiday_hint: str = None) -> list:
+    """Industry & Competitor Watch — broader industry/business/regulatory news NOT tied to a
+    specific named competitor (see research_competitor_watch for the dedicated per-name check).
+    Returns list of dicts: {headline, detail, so_what, url, city}"""
     sources_str = ", ".join(SOURCES["industry"])
 
     prompt = f"""
-Search for news from the past week about these restaurant reservation competitors
-and the broader reservation/dining landscape: {comp_str}
-
-Also search these industry sources: {sources_str}
+Search these industry sources for the past week: {sources_str}
 
 Look for:
-- M&A in hospitality tech, platform updates (OpenTable, Resy, SevenRooms, DoorDash, Uber Eats)
-- Restaurant industry business news, funding rounds, policy changes affecting restaurants
 - Restaurant reservation regulation news, reservation bot crackdowns, new reservation-adjacent
-  features from Google/Apple Maps, dining trend shifts
+  features from Google/Apple Maps, broader dining trend shifts
+- Restaurant industry business news, funding rounds, or policy changes NOT already tied to a
+  specific named competitor (those are covered by Competitor Watch — don't duplicate them here)
 - Notable restaurant/chef business moves — closures, chef departures/hires, brand
   partnerships, acquisitions (the business angle, not the cultural gossip angle — that
   belongs in City & Culture)
 
-Find 3-5 most relevant items. {_city_label_instruction()}
+Find 2-4 most relevant items. {_city_label_instruction()}
 For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words —
 factual and direct, no hype), url (direct article link if available), city.
 """
@@ -681,21 +745,29 @@ NYC sources: {nyc_sources}
 London sources: {ldn_sources}
 Specials/collab sources: {specials_sources}
 Insider hospitality sources: {hospitality_sources}
+{_source_priority_instruction()}
 
 Signal accounts (use as vibe calibration, do NOT cite directly): {signal}
+
+Your job is not to summarize hospitality news — it's to make sure nobody on the team ever says
+"wait...how did we miss that?" If a food/hospitality brand collab, product drop, or celebrity
+moment is already all over restaurant/creator accounts, it belongs here even if no publication
+has written it up yet.
 
 Look for:
 - Cultural trends: what the city is obsessed with, experiences people are seeking out
 - Social moments driving people to make plans
 - Celebrity or cultural figure spotted at a restaurant — the gossip-meets-dining crossover
   (e.g. "Sabrina Carpenter caught at Emmets on Grove" — this kind of micro-moment is gold)
-- Brand × food collabs going viral on social media (e.g. a yogurt brand doing a froyo pop-up)
-- Insider hospitality gossip and cultural moments — chef moves as a CULTURAL story (not a
-  business one — that belongs in Industry & Competitor Watch), food-media buzz, brand x
-  restaurant crossover moments
+- Brand × food collabs going viral on social media (e.g. a yogurt brand doing a froyo pop-up,
+  a bakery's new limited drink, a froyo topping collab with a bakery/creator brand) — check what
+  the venue's OWN account and food creators are already posting, not just what's been covered
 - Named chef x restaurant collabs with a specific dish (e.g. "Chef X x Restaurant Y = The
   [Dish Name]"), limited-time/seasonal menu items with a story behind them, pop-up residencies
   with a clear end date and specific menu
+- Insider hospitality gossip and cultural moments — chef moves as a CULTURAL story (not a
+  business one — that belongs in Industry & Competitor Watch), food-media buzz, brand x
+  restaurant crossover moments
 - NOT generic events listings, NOT general prix-fixe deals/restaurant week/generic seasonal
   menus without a story
 
@@ -1032,18 +1104,22 @@ def build_slack_blocks(
         blocks.append({"type": "divider"})
 
     # ── 2. Industry & Competitor Watch ──────────────────────────────────────
+    competitor_watch = [s for s in industry if s.get("is_competitor_watch")]
+    other_industry   = [s for s in industry if not s.get("is_competitor_watch")]
     if industry or new_competitors:
-        industry_text = format_news_items(industry) if industry else ""
+        parts = ["*🏢  INDUSTRY & COMPETITOR WATCH*"]
+        if competitor_watch:
+            parts.append(f"*🎯 Competitor Watch*\n\n{format_news_items(competitor_watch)}")
+        if other_industry:
+            parts.append(format_news_items(other_industry))
         if new_competitors:
             comp_str = ", ".join(new_competitors)
-            new_comp_block = f"\n\n*New competitor spotted:* {comp_str}"
-            industry_text = (industry_text + new_comp_block).strip()
-        if industry_text:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": safe_text(f"*🏢  INDUSTRY & COMPETITOR WATCH*\n\n{industry_text}")},
-            })
-            blocks.append({"type": "divider"})
+            parts.append(f"*New competitor spotted:* {comp_str}")
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": safe_text("\n\n".join(parts))},
+        })
+        blocks.append({"type": "divider"})
 
     # ── 3. City & Culture ────────────────────────────────────────────────────
     if culture:
@@ -1096,11 +1172,23 @@ def _story_entries(items: list, today_iso: str) -> list:
 def _pinned_to_story(pin: dict) -> dict:
     """Converts a manually pinned story into the common pool shape. Category is treated as
     authoritative by edit_and_rank's prompt (see the "origin" == "pinned" rule) — pins get
-    ranked alongside everything else researched this run, never recategorized."""
+    ranked alongside everything else researched this run, never recategorized.
+
+    Applies the same live link verification research_openings already applies to its own
+    output — a manually pinned link deserves the same integrity guarantee as a researched
+    one, since it ends up in the same digest either way."""
     story = {k: v for k, v in pin.items() if k != "section"}
     story["category"] = pin.get("section", "culture")
     story["origin"] = "pinned"
-    story["id"] = story.get("url") or f"pinned::{story.get('headline', '')}"
+
+    for link_field in ("url", "website", "instagram_url", "cover_image_post", "source_url"):
+        if story.get(link_field) and not verify_url(story[link_field]):
+            print(f"Pinned story link failed verification, dropping: {link_field}={story[link_field]!r}")
+            story[link_field] = ""
+    if not story.get("instagram_url"):
+        story["instagram_handle"] = ""
+
+    story["id"] = story.get("url") or story.get("website") or f"pinned::{story.get('headline') or story.get('name', '')}"
     return story
 
 
@@ -1179,8 +1267,15 @@ def main():
             if item["id"] not in carried_ids
         ]
 
+        print("Researching competitor watch...")
+        competitor_watch_items = research_competitor_watch(
+            competitors, seen_stories=recent_stories, holiday_hint=holiday_hint
+        )
+
         print("Researching industry & competitor watch...")
-        industry_items = research_industry(competitors, seen_stories=recent_stories, holiday_hint=holiday_hint)
+        industry_items = competitor_watch_items + research_industry(
+            exclude=competitor_watch_items, seen_stories=recent_stories, holiday_hint=holiday_hint
+        )
 
         print("Researching city & culture...")
         culture_items = research_culture(exclude=industry_items, seen_stories=recent_stories, holiday_hint=holiday_hint)

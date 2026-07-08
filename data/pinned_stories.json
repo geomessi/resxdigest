@@ -1,1 +1,39 @@
-[]
+[
+  {
+    "section": "new_opening",
+    "name": "RH London, The Gallery in Mayfair",
+    "date": "opened June 27, 2026",
+    "blurb": "RH's five-level luxury home, design & dining flagship inside a historic Palladian mansion — Margot Robbie, Henry Cavill, and Janet Jackson toasted the opening.",
+    "city": "LDN",
+    "website": "https://www.rh.com",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://www.hot-dinners.com/2025012713890/Gastroblog/Latest-news/rh-london-restoration-hardware-mayfair-restaurants-bar"
+  },
+  {
+    "section": "culture",
+    "headline": "Myka x Losers cinnamon roll froyo topping",
+    "detail": "Myka's West Village Greek froyo now tops with mini Losers cinnamon roll bites, a monthly special.",
+    "so_what": "exactly the collab-of-the-month energy the audience is already discussing",
+    "url": "https://www.instagram.com/reel/DaX4M-MOsKB/",
+    "city": "NYC"
+  },
+  {
+    "section": "culture",
+    "headline": "Levain debuts Cookie Milk Latte",
+    "detail": "Oat milk steeped 12hrs with 3 signature cookies, espresso, salted cold foam — launched July 6, $7.50 nationwide.",
+    "so_what": "turns Levain's cookies-and-milk pairing into a coffee format for the first time",
+    "url": "https://www.bakemag.com/articles/21730-levain-bakery-debuts-cookie-milk-latte",
+    "city": "BOTH"
+  },
+  {
+    "section": "industry",
+    "is_competitor_watch": true,
+    "headline": "Dorsia expands to Chicago",
+    "detail": "Dorsia announces Chicago as a new market, confirmed via Instagram Reel.",
+    "so_what": "another top reservation competitor adds a major US city ResX should track",
+    "url": "https://www.instagram.com/reel/DaVsCi-KWAd/",
+    "city": "BOTH"
+  }
+]
