@@ -1,1 +1,46 @@
-[]
+[
+  {
+    "date": "2026-07-08",
+    "pinned_input": "https://www.instagram.com/p/DafrHLSFlzl/",
+    "subject": "",
+    "url": "",
+    "reason": "no_content_found",
+    "detail": "Multiple targeted searches for this specific Curbed post (DafrHLSFlzl) returned zero results identifying the couple, address, or neighborhood featured. Without the actual subject of the post confirmed, building the predictive location carousel would require fabricating the celebrity name and specific neighborhood \u2014 which violates the accuracy requirement. Dropping rather than guessing.",
+    "source_type": "pinned"
+  },
+  {
+    "date": "2026-07-08",
+    "subject": "Chrissy's Pizza Greenpoint",
+    "url": "https://www.instagram.com/chrissys.pizza/",
+    "reason": "The 'impossible reservation' hook is outdated \u2014 a recent Substack review confirmed walk-ins are common and online ordering is easy. Positioning it as hard-to-get would be inaccurate for today's audience. Not fresh enough to surface.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-08",
+    "subject": "Rules Restaurant London CNN story",
+    "url": "https://krdo.com/news/2026/07/08/inside-the-228-year-old-london-restaurant-that-time-forgot/",
+    "reason": "Published today but the source is a local TV news relay of a CNN travel piece \u2014 a generic heritage story, not a stop-scroll social moment. No specific post behind it and no ResX booking angle.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-08",
+    "subject": "Strand / Hot Dinners best 2026 London openings roundup",
+    "url": "https://www.hot-dinners.com/Features/Hot-Dinners-recommends/best-new-london-restaurants-openings-2026",
+    "reason": "A listicle roundup, not a specific social moment. No single post behind it. Fails source quality gate.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-08",
+    "subject": "Mimi's Nolita froyo",
+    "url": "https://www.edgenyc.com/news/tiktok-viral-things-to-do-in-nyc-right-now/",
+    "reason": "Sourced from a tourism editorial listicle, not a specific creator post. Nothing fresh today behind it.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-08",
+    "subject": "#foodjutsutrend TikTok audio",
+    "url": "https://www.socialpilot.co/blog/tiktok-trends",
+    "reason": "Trend confirmed real and at 36M+ posts, but named #1 for June 2026 \u2014 likely already past peak saturation entering July. No specific linkable TikTok audio URL retrieved that could be confidently cited.",
+    "source_type": "researched"
+  }
+]
