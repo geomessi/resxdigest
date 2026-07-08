@@ -1,7 +1,9 @@
 """
 ResX Social Bot
-Runs daily via GitHub Actions. Finds 5-7 UGC posts (Instagram reels / TikToks)
-from food creators in NYC and London and posts them to #social for the team to repost.
+Runs daily via GitHub Actions. Finds specific, real, repostable social opportunities
+(Instagram reels / TikToks, carousel ideas backed by real posts, trending audio) for
+NYC and London and posts them to #social for the team to repost. Quality over quantity —
+some days may have few or no opportunities.
 """
 
 import os
@@ -96,112 +98,214 @@ def safe_link(url: str, label: str) -> str:
     return f"<{url}|{label}>"
 
 
-def research_ugc(seen_urls: set) -> list:
+def research_ugc(seen_urls: set, seen_subjects: set, seen_songs: set) -> tuple:
     seen_str = "\n".join(f"- {u}" for u in list(seen_urls)[:60]) if seen_urls else "none"
+    subjects_str = "\n".join(f"- {s}" for s in sorted(seen_subjects)) if seen_subjects else "none"
+    songs_str = "\n".join(f"- {s}" for s in sorted(seen_songs)) if seen_songs else "none"
     signal = ", ".join(NYC_SIGNAL_ACCOUNTS + LONDON_SIGNAL_ACCOUNTS)
 
     prompt = f"""
 You are a social media strategist for ResX — a last-minute restaurant reservation app for
-25-35 year olds in NYC and London. Each morning you send the team a list of specific,
-actionable social opportunities for that day.
+25-35 year olds in NYC and London. Each morning you send the team the highest-leverage social
+opportunities for today. This is not a news summary of what's happening in NYC/London — every
+item must be something that makes the team think "we should post this right now."
 
 Target audience vibe (use as calibration only, do NOT cite): {signal}
 
 Today is {datetime.date.today().strftime("%A, %B %d, %Y")}. Search for content from the last
-24 hours only — posted or going viral today or since yesterday. Nothing older. Every item must
-be fresh to today's date. For each item you find, your job is not just to surface it — but to
-tell the team exactly what to DO with it.
+24 hours only. Nothing older — prioritize things just starting to take off (posted minutes ago,
+soft-opened yesterday, announced this morning) over stuff that's already fully saturated or that
+you'd only know about from an old article.
 
-Look for:
-- A trending audio or song the team could use over a dining/going-out reel — link to the
-  specific audio, name the song and artist, explain what kind of content it suits
-- A viral moment in NYC or London the team could engage with or riff on
-  (e.g. a couple going viral, a wild local story, a meme format taking over)
-- A specific UGC post (reel or TikTok) from a food creator that is worth reposting —
-  link to the exact post, not just the account
-- A food or drink collab, pop-up, or moment generating buzz that ResX could comment on,
-  reshare, or tie to a booking prompt
-- A pop culture or celebrity moment (sighting, collab, event) the team could tie to a
-  restaurant or going-out angle
-- A seasonal or weather-driven trend to capitalise on with specific content ideas
-  (e.g. it's a heatwave → frozen cocktail content, ice cream spots, rooftop bookings)
+Before including anything, all four must be true:
+1. Would this make someone stop scrolling?
+2. Does our audience actually care?
+3. Would waiting until tomorrow make it stale?
+4. Can the team execute this in under 15 minutes?
+If not, drop it. QUALITY OVER QUANTITY — 5 exceptional opportunities beats 25 mediocre ones.
+It's completely fine to return fewer than usual, even 0, on a quiet day. Never pad the list.
 
-Be specific. "Use Charli XCX's [exact song] audio (link) over a Friday night booking reel"
-is good. "@charliXCX" is useless. "NBC NY posted a round-up of July 4th ice cream specials
-(link) — repost with 'beat the heat, book a table'" is good. "NBC New York" is useless.
+PRIORITIZE IN THIS ORDER:
+- Tier 1 (should be most of the list): celebrity sightings (dining, spotted somewhere, viral
+  date nights), pop-culture moments the team could tie a restaurant/going-out angle to (award
+  shows, viral sports moments, reality TV, major concerts, TikTok drama), restaurants suddenly
+  everyone wants (viral TikTok spot, impossible reservation, secret menu, one-week collab/pop-up).
+- Tier 2 (secondary): FOMO-inducing openings and activations (rooftop, hotel, luxury brand café,
+  fan villages, food festivals, weekend-only experiences).
+- Tier 3 (rare, only with an obvious ResX angle): lifestyle moments (heatwave, marathon, Pride,
+  holiday weekends, first day of outdoor dining).
 
-Find 5-7 items. Mix of NYC and London.
+ALSO look for "internet's winners" — a genuinely great post from an adjacent hospitality, hotel,
+travel, city-guide, or lifestyle account that makes you think "damn, I wish we'd made that." Not
+something to repost as ResX's own content — creative inspiration for the team, tagged as `inspo`.
 
-For each return:
-- content: what specifically it is (name the song/post/moment/trend — be exact). Max 8 words.
-- action: one specific caption direction or action in ResX brand voice — insider, lowercase,
-  cool girl energy, like a friend texting a tip. e.g. "repost with 'your sign to book tonight'"
-  or "use this audio over empty-table-to-full-room b-roll" or "comment 'table for 2?' on this".
-  Max 7 words. No marketing speak.
-- url: primary link — must be an Instagram post/reel, TikTok, or song (Spotify/Apple Music/SoundCloud).
-  This is what the team will repost, use the audio from, or engage with directly.
-  Search hard for this. If you can only find an article, leave url blank.
-- context_url: optional. An article or news link that gives background context on why this is relevant.
-  Only include if genuinely useful — not required.
+SOURCE QUALITY: prioritize Instagram Reels, TikTok, X, Threads, and posts from creator/
+restaurant/hotel/brand/celebrity accounts. Do NOT send generic news articles, press releases,
+tourism sites, event calendars, or "things to do this weekend" listicles — unless the article
+itself IS the story. If a real-world moment is worth surfacing but you can't find an actual
+specific post about it, DROP IT rather than report it with only an article link.
+
+LINK ACCURACY IS CRITICAL. Only use a URL you actually retrieved from a web_search result —
+never construct, guess, paraphrase, autocomplete, or recall a URL from memory. Before including
+a post, confirm the URL you're citing is the one the search result actually returned, and that
+it genuinely matches the content you're describing (right restaurant, right collab, right
+video). If you're not certain a link is correct, drop the item rather than guess.
+
+FRESHNESS ACROSS DAYS. Do not repeat a restaurant, venue, creator, or topic already featured in
+the last 7 days (list below) unless there's a genuinely new, specifically-named development —
+never repeat just because it's still trending. Same for songs: don't reuse one featured this week.
+
+Restaurants/venues/topics already featured in the last 7 days — do not repeat these:
+{subjects_str}
+
+Songs already featured in the last 7 days — do not reuse these:
+{songs_str}
+
+Every opportunity needs a concrete action. Do NOT write captions, comments, or hooks — just
+identify the opportunity, its type, and the real link(s). The team writes their own copy.
+Six action types:
+- repost: one specific post (reel/TikTok) worth reposting as-is. Needs: post_url, creator
+  (handle/name), creator_url (optional link to their account).
+- carousel: an original idea built from several real existing posts, one per slide — only
+  valid if every slide has a real post behind it. Needs: slides (2+ entries, each
+  {{"label": "...", "url": "..."}}).
+- story: one specific reel/post worth reposting to Story specifically. Needs: post_url.
+- comment: a brand/account post worth engaging via comment (no comment text — just what to
+  comment on). Needs: target_url, target_label (whose post / what it is).
+- meme: a meme format or trend taking over that ResX could participate in. Needs:
+  reference_url (optional — the origin post/template, if findable).
+- inspo: a great post from an adjacent account, for creative inspiration only. Needs:
+  source_url, creator, creator_url (optional).
+
+Bad (vague, no real posts behind it): "carousel: 'before the match. after the match. the table
+in between.' fan village just opened, final july 19"
+Good (real idea, backed by specific linked posts): a carousel titled "5 most-viral ice cream
+spots in nyc right now," backed by 5 actual posts, one per spot, each with its own link.
+
+For every opportunity also return:
+- headline: what it is, one line, brand voice, no caption copy. Max 10 words.
+- subject: the restaurant/venue/creator/topic this is about, max 4 words. Used only for
+  dedup, not shown to the team — must name the actual specific thing, not the idea.
 - city: "NYC", "LDN", or "BOTH"
-- why_now: timing or cultural context, lowercase, max 4 words
+
+Return opportunities already ordered most-compelling-first.
+
+Separately, look for trending audio: a song/sound worth using over a dining or going-out reel.
+Just the track and a link — no explanation of what content it suits. Return 0-3, only if
+genuinely trending today. For each: song, artist, url (Spotify/Apple Music/TikTok sound link).
 
 Do NOT include any of these URLs which have already been sent:
 {seen_str}
 
-Return ONLY a valid JSON array:
-[
-  {{"content": "...", "action": "...", "url": "...", "context_url": "...", "city": "...", "why_now": "..."}}
-]
+Return ONLY a valid JSON object, no markdown:
+{{
+  "opportunities": [
+    {{"type": "repost|carousel|story|comment|meme|inspo", "headline": "...", "subject": "...",
+      "city": "...", "post_url": "...", "creator": "...", "creator_url": "...",
+      "slides": [{{"label": "...", "url": "..."}}], "target_url": "...", "target_label": "...",
+      "reference_url": "...", "source_url": "..."}}
+  ],
+  "audio": [
+    {{"song": "...", "artist": "...", "url": "..."}}
+  ]
+}}
+Only include the fields relevant to that opportunity's type — omit the rest.
 """
 
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
             "You are a culturally plugged-in social media strategist writing for ResX — "
-            "a NYC and London restaurant reservation app. The brand voice is: insider, cool girl, "
-            "effortlessly elegant, the friend you want at every dinner party. Moody aesthetic. "
-            "Lowercase. Specific cultural references. Never try-hard. Never corporate. "
-            "Think: 'where the cast of The Bear would eat' or 'your sign to book tonight' or "
-            "'spots serving the Knicks energy'. Action copy should sound like a cool friend "
-            "texting you a tip, not a marketing brief. "
-            "Every suggestion must be specific and immediately actionable — name exact songs, "
-            "link to exact posts, suggest exact copy or caption directions. "
-            "Brevity is the brand voice: short and sharp beats thorough. Cut every word that "
-            "isn't load-bearing. If a sentence works with a word removed, remove it. "
-            "No generic accounts, no vague trends, no AI-sounding phrases. "
-            "Return only a valid JSON array, no markdown."
+            "a NYC and London restaurant reservation app. Brand voice: insider, cool girl, "
+            "lowercase, like a friend texting a tip. Never try-hard, never corporate, never "
+            "AI-sounding. Specific cultural references over generic ones. "
+            "Brevity is the brand voice — cut every word that isn't load-bearing. "
+            "You surface opportunities and real links — you never write captions, comments, "
+            "or hooks; that's for the team. "
+            "Every opportunity must be backed by real, specific, existing posts you actually "
+            "found — never invent a concept with nothing behind it. "
+            "Accuracy matters more than coverage: only cite a URL you actually got back from "
+            "a web_search result, never one you constructed or recalled from memory, and never "
+            "attach a URL to a description it doesn't actually match. When in doubt, drop it. "
+            "Return only a valid JSON object, no markdown."
         ),
     )
 
     try:
         clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
-        start = clean.index("[")
+        start = clean.index("{")
         data, _ = json.JSONDecoder().raw_decode(clean, start)
-        return data if isinstance(data, list) else []
+        if not isinstance(data, dict):
+            return [], []
+        return data.get("opportunities", []) or [], data.get("audio", []) or []
     except Exception as e:
         print(f"Error parsing UGC results: {e}")
-        return []
+        return [], []
+
+
+def urls_in_item(item: dict) -> list:
+    urls = [item[k] for k in ("post_url", "target_url", "reference_url", "source_url") if item.get(k)]
+    urls += [s["url"] for s in item.get("slides", []) or [] if s.get("url")]
+    return urls
 
 
 def format_ugc_item(item: dict) -> str:
-    content = item.get("content", "")
-    action  = item.get("action", "")
-    url     = item.get("url", "")
-    why_now = item.get("why_now", "")
+    item_type = item.get("type", "repost")
+    headline  = item.get("headline", "")
+    city      = item.get("city", "BOTH").upper()
+    tag       = f"→ {item_type.upper()}  ·  {city}"
+    header    = f"{tag}\n*{headline}*"
 
-    context_url = item.get("context_url", "")
-    link_str    = f"  {safe_link(url, 'open')}" if url else ""
-    context_str = f"  ·  {safe_link(context_url, 'context')}" if context_url else ""
-    why_str     = f"  _{why_now}_" if why_now else ""
-    lines = [f"*{content}*{link_str}{context_str}"]
-    if action:
-        lines.append(f"→ {action}{why_str}")
+    if item_type == "carousel":
+        lines = [header]
+        for slide in item.get("slides", []) or []:
+            label = slide.get("label", "")
+            url   = slide.get("url", "")
+            if url:
+                lines.append(f"  •  {safe_link(url, label or 'open')}")
+        return "\n".join(lines)
 
-    return "\n".join(lines)
+    if item_type == "story":
+        url = item.get("post_url", "")
+        link_str = f"  {safe_link(url, 'reel')}" if url else ""
+        return f"{header}{link_str}"
+
+    if item_type == "comment":
+        url   = item.get("target_url", "")
+        label = item.get("target_label", "post")
+        link_str = f"  {safe_link(url, label)}" if url else ""
+        return f"{header}{link_str}"
+
+    if item_type == "meme":
+        url = item.get("reference_url", "")
+        link_str = f"  {safe_link(url, 'reference')}" if url else ""
+        return f"{header}{link_str}"
+
+    if item_type == "inspo":
+        url        = item.get("source_url", "")
+        creator_url = item.get("creator_url", "")
+        link_str    = f"  {safe_link(url, 'post')}" if url else ""
+        creator_str = f"  ·  {safe_link(creator_url, 'creator')}" if creator_url else ""
+        return f"{header}{link_str}{creator_str}"
+
+    # repost (default)
+    url         = item.get("post_url", "")
+    creator_url = item.get("creator_url", "")
+    link_str    = f"  {safe_link(url, 'reel')}" if url else ""
+    creator_str = f"  ·  {safe_link(creator_url, 'creator')}" if creator_url else ""
+    return f"{header}{link_str}{creator_str}"
 
 
-def build_slack_blocks(date_str: str, items: list) -> list:
+def format_audio_item(item: dict) -> str:
+    song   = item.get("song", "")
+    artist = item.get("artist", "")
+    url    = item.get("url", "")
+    label  = f"{song} — {artist}" if artist else song
+    link_str = f"  {safe_link(url, 'listen')}" if url else ""
+    return f"*{label}*{link_str}"
+
+
+def build_slack_blocks(date_str: str, items: list, audio: list) -> list:
     blocks = [
         {
             "type": "header",
@@ -209,28 +313,9 @@ def build_slack_blocks(date_str: str, items: list) -> list:
         }
     ]
 
-    nyc_items = [i for i in items if i.get("city", "BOTH").upper() in ("NYC", "BOTH")]
-    ldn_items = [i for i in items if i.get("city", "BOTH").upper() in ("LDN", "BOTH")]
-
-    if nyc_items:
+    if items:
         blocks.append({"type": "divider"})
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "*🗽  NYC*"},
-        })
-        for item in nyc_items:
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": format_ugc_item(item)},
-            })
-
-    if ldn_items:
-        blocks.append({"type": "divider"})
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "*🇬🇧  London*"},
-        })
-        for item in ldn_items:
+        for item in items:
             blocks.append({
                 "type": "section",
                 "text": {"type": "mrkdwn", "text": format_ugc_item(item)},
@@ -241,6 +326,18 @@ def build_slack_blocks(date_str: str, items: list) -> list:
             "type": "section",
             "text": {"type": "mrkdwn", "text": "_No social opportunities found today._"},
         })
+
+    if audio:
+        blocks.append({"type": "divider"})
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*Trending Audio*"},
+        })
+        for item in audio:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": format_audio_item(item)},
+            })
 
     blocks.append({
         "type": "context",
@@ -267,19 +364,38 @@ def main():
     # Load seen URLs (7-day rolling window)
     seen_raw = load_json(SEEN_UGC_FILE, [])
     cutoff = (today - datetime.timedelta(days=7)).isoformat()
-    seen_urls = {e["url"] for e in seen_raw if e.get("date", "") >= cutoff}
-    print(f"Loaded {len(seen_urls)} seen UGC URLs for dedup")
+    recent = [e for e in seen_raw if e.get("date", "") >= cutoff]
+    seen_urls = {e["url"] for e in recent if e.get("url")}
+    seen_subjects = {e["subject"] for e in recent if e.get("subject")}
+    seen_songs = {e["song"] for e in recent if e.get("song")}
+    print(
+        f"Loaded {len(seen_urls)} seen URLs, {len(seen_subjects)} seen subjects, "
+        f"{len(seen_songs)} seen songs for dedup"
+    )
 
     print("Researching UGC...")
-    items = research_ugc(seen_urls)
-    print(f"Found {len(items)} UGC items")
+    items, audio = research_ugc(seen_urls, seen_subjects, seen_songs)
+    print(f"Found {len(items)} opportunities, {len(audio)} audio items")
 
-    blocks = build_slack_blocks(today_str, items)
+    blocks = build_slack_blocks(today_str, items, audio)
     post_to_slack(blocks)
     print("Posted to #social")
 
-    # Save seen URLs (keep last 14 days to cap file size)
-    new_entries = [{"url": item["url"], "date": today_iso} for item in items if item.get("url")]
+    # Save seen URLs/subjects/songs (keep last 14 days to cap file size)
+    new_entries = [
+        {"url": url, "date": today_iso, "subject": item.get("subject", "")}
+        for item in items
+        for url in urls_in_item(item)
+    ]
+    new_entries += [
+        {
+            "url": item["url"],
+            "date": today_iso,
+            "song": f"{item.get('song', '')} - {item.get('artist', '')}",
+        }
+        for item in audio
+        if item.get("url")
+    ]
     keep_cutoff = (today - datetime.timedelta(days=14)).isoformat()
     all_entries = [e for e in seen_raw if e.get("date", "") >= keep_cutoff] + new_entries
     save_json(SEEN_UGC_FILE, all_entries)
