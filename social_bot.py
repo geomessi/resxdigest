@@ -158,6 +158,18 @@ PRIORITIZE IN THIS ORDER:
 - Tier 3 (rare, only with an obvious ResX angle): lifestyle moments (heatwave, marathon, Pride,
   holiday weekends, first day of outdoor dining).
 
+PREDICTIVE LOCATION-BASED CONTENT — a specific Tier 1 pattern worth actively watching for.
+If you find a post (real estate, gossip, paparazzi, etc.) revealing where a celebrity or
+notable couple lives, is moving to, or was recently spotted near — a specific address or
+tight neighborhood, not just "NYC" — research 3 REAL, SPECIFIC, currently-open restaurants/
+bars in that exact neighborhood the couple/celebrity would plausibly be spotted at. Build
+this as a carousel: idea names the person/couple and the neighborhood (e.g. "[couple] just
+moved to the West Village — 3 spots they'll probably be spotted at"), backed by 3 real posts,
+one per restaurant, each with its own link — never guess at restaurants, search for and
+confirm real spots actually in that specific area. The trigger is a real-estate/location
+reveal; the payoff is a concrete, personalized, neighborhood-anchored carousel — not a vague
+"they'll probably eat well" comment.
+
 ALSO look for "internet's winners" — a genuinely great post from an adjacent hospitality, hotel,
 travel, city-guide, or lifestyle account that makes you think "damn, I wish we'd made that." Not
 something to repost as ResX's own content — creative inspiration for the team, tagged as `inspo`.
