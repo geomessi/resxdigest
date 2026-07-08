@@ -27,13 +27,14 @@ from pathlib import Path
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 SLACK_WEBHOOK_URL = os.environ["SLACK_WEBHOOK_URL"]
 
-SEEN_OPENINGS_FILE  = Path("data/seen_openings.json")
-COMPETITORS_FILE    = Path("data/competitors.json")
-WATCHING_FILE       = Path("data/watching.json")
-SEEN_STORIES_FILE   = Path("data/seen_stories.json")
-PINNED_STORIES_FILE = Path("data/pinned_stories.json")
-LAST_POST_FILE      = Path("data/last_post.json")
-RUN_LOG_FILE        = Path("data/run_log.json")
+SEEN_OPENINGS_FILE     = Path("data/seen_openings.json")
+COMPETITORS_FILE       = Path("data/competitors.json")
+WATCHING_FILE          = Path("data/watching.json")
+SEEN_STORIES_FILE      = Path("data/seen_stories.json")
+PINNED_INPUTS_FILE     = Path("data/pinned_inputs.json")
+SKIPPED_ITEMS_LOG_FILE = Path("data/skipped_items_log.json")
+LAST_POST_FILE         = Path("data/last_post.json")
+RUN_LOG_FILE           = Path("data/run_log.json")
 
 # Only bot.py runs git commands for itself when actually running in CI —
 # never touch the caller's working tree during local/manual testing.
@@ -210,6 +211,25 @@ def verify_url(url: str) -> bool:
         req.add_header("User-Agent", "Mozilla/5.0")
         with urllib.request.urlopen(req, timeout=5) as resp:
             return resp.status < 400
+    except Exception:
+        return False
+
+
+def check_broken(url: str, timeout: int = 5) -> bool:
+    """Best-effort dead-link check for MANUALLY PINNED links specifically — deliberately more
+    lenient than verify_url(). Only a definitive 404/410 counts as broken; network errors,
+    timeouts, and blocks (very common on Instagram/TikTok for scripted requests — confirmed
+    directly: a real, live Bake Magazine article once returned a 403 to a plain curl request)
+    are treated as inconclusive, not broken. Georgia is vouching for a pinned link herself;
+    the bar for rejecting it must be "confirmed dead", not "couldn't verify via HEAD request"."""
+    if not url or not url.startswith(("http://", "https://")):
+        return True
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status in (404, 410)
+    except urllib.error.HTTPError as e:
+        return e.code in (404, 410)
     except Exception:
         return False
 
@@ -492,6 +512,8 @@ For each restaurant in BOTH lists return:
 - name: restaurant name
 - date: opening date (e.g. "June 18") or "opens [date]" for coming soon
 - blurb: 1 punchy sentence, max 12 words — vibe, concept, what makes it notable
+- so_what: why should the ResX team care — strategic, competitive, or audience-fit signal,
+  max 12 words (e.g. "impossible reservation, exactly our last-minute booking audience")
 - city: "{city_key}"
 - website: search for the official website — try "[name].com", "[name].co.uk", and "site:[name] official". Only include if the URL resolves. Leave blank if nothing confirmed.
 - instagram_handle: official Instagram handle e.g. @restaurantname — search for it, required
@@ -506,14 +528,14 @@ Return ONLY valid JSON:
   "just_opened": {{
     "items": [
       {{
-        "name": "...", "date": "...", "blurb": "...", "city": "...",
+        "name": "...", "date": "...", "blurb": "...", "so_what": "...", "city": "...",
         "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
       }}
     ]
   }},
   "coming_soon": [
     {{
-      "name": "...", "date": "...", "blurb": "...", "city": "...",
+      "name": "...", "date": "...", "blurb": "...", "so_what": "...", "city": "...",
       "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "...", "source_url": "..."
     }}
   ]
@@ -587,6 +609,18 @@ been written up by a publication yet is EXACTLY what you should surface, not ski
 for editorial coverage to confirm something is real — if the restaurant/brand account itself
 posted it, or a food/hospitality creator is already covering it, that is a real, valid, citable
 source on its own."""
+
+
+def _executive_relevance_instruction() -> str:
+    """This is not a news summary — it's an executive briefing. Applied per-item at research
+    time (self-filtering at the source) as well as again in edit_and_rank (a second pass with
+    visibility across the whole pool)."""
+    return """
+EXECUTIVE RELEVANCE. This is not a news summary — it's an executive briefing for the ResX
+team. Every item must answer: why should the ResX team care? That can be strategic,
+operational, cultural, competitive, or product-related. If something is interesting but
+wouldn't change what the team would actually discuss internally that week, leave it out —
+do not include it just because it happened."""
 
 
 def _build_exclude_instruction(exclude: list) -> str:
@@ -712,6 +746,7 @@ def research_industry(exclude: list = None, seen_stories: list = None, holiday_h
 
     prompt = f"""
 Search these industry sources for the past week: {sources_str}
+{_executive_relevance_instruction()}
 
 Look for:
 - Restaurant reservation regulation news, reservation bot crackdowns, new reservation-adjacent
@@ -723,8 +758,9 @@ Look for:
   belongs in City & Culture)
 
 Find 2-4 most relevant items. {_city_label_instruction()}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 10 words —
-factual and direct, no hype), url (direct article link if available), city.
+For each return: headline (max 8 words), detail (max 12 words), so_what (max 12 words — why
+the ResX team should care, factual and direct, no hype), url (direct article link if available),
+city.
 """
     return _run_news_research(prompt, "industry", exclude, seen_stories, holiday_hint)
 
@@ -746,6 +782,7 @@ London sources: {ldn_sources}
 Specials/collab sources: {specials_sources}
 Insider hospitality sources: {hospitality_sources}
 {_source_priority_instruction()}
+{_executive_relevance_instruction()}
 
 Signal accounts (use as vibe calibration, do NOT cite directly): {signal}
 
@@ -777,8 +814,8 @@ Osteria Vibrato carry Tide Pens in their pockets." Real facts and named details 
 observations every time.
 
 Find 4-5 items across NYC and London. {_city_label_instruction()}
-For each return: headline (punchy, max 8 words), detail (max 12 words), so_what (max 10 words —
-factual and direct, no hype), url (direct link if available), city.
+For each return: headline (punchy, max 8 words), detail (max 12 words), so_what (max 12 words —
+why the ResX team should care, factual and direct, no hype), url (direct link if available), city.
 """
     return _run_news_research(prompt, "culture", exclude, seen_stories, holiday_hint)
 
@@ -807,6 +844,222 @@ saves, or what to change; not "this could be useful" — name the specific actio
 url (direct link if available), city.
 """
     return _run_news_research(prompt, "ai_product", exclude, seen_stories, holiday_hint)
+
+
+# ---------------------------------------------------------------------------
+# Step 2.5 — Pinned inputs: Georgia's manually-submitted leads
+#
+# Anything manually submitted (a link, a name, a description) is high-priority and must
+# never be silently ignored. research_pinned_inputs does the extraction/categorization work
+# so Georgia only has to hand over a raw lead, not a pre-written digest entry — this is the
+# actual fix for pinned content getting dropped: there was previously no path for "just a
+# link" input at all, only for fully-authored story objects.
+# ---------------------------------------------------------------------------
+
+def research_pinned_inputs(raw_leads: list, seen_openings: set, watching_context: list,
+                            recent_stories: list, holiday_hint: str = None) -> dict:
+    """Researches each manually-submitted raw lead (a URL or short description, optionally
+    with a hint) via web_search, categorizes it using the same rules as edit_and_rank, and
+    extracts full story fields. Returns {"resolved": [...], "rejected": [...]}."""
+    if not raw_leads:
+        return {"resolved": [], "rejected": []}
+
+    leads_str = "\n".join(
+        f'- input: "{lead.get("input", "")}"' + (f'  (hint: {lead["hint"]})' if lead.get("hint") else "")
+        for lead in raw_leads
+    )
+    seen_openings_str = ", ".join(seen_openings) if seen_openings else "none"
+    watching_str = ", ".join(w.get("name", "") for w in watching_context) if watching_context else "none"
+    covered_str = (
+        "\n".join(f"- {s.get('headline', '')} — {s.get('detail', '')}" for s in (recent_stories or [])[:60])
+        or "none"
+    )
+
+    prompt = f"""
+Georgia has manually submitted these leads. They are HIGH-PRIORITY and must never be silently
+ignored — research each one and extract a full digest story from it.
+
+Leads to resolve:
+{leads_str}
+
+Already-featured restaurant names (permanent list — a match here is a duplicate):
+{seen_openings_str}
+
+Currently tracked as "watching" (not yet open):
+{watching_str}
+
+Already covered in recent digests (a match here is a duplicate unless materially new):
+{covered_str}
+
+For each lead:
+1. Investigate it. If it's a link (Instagram/TikTok/X/article), figure out what it actually
+   shows or says. If it's a short description (a restaurant name, a competitor, a
+   collaboration), search for it to confirm the real facts.
+2. Categorize it using these rules (identical to the rest of the digest):
+   - Officially opened restaurant/hotel/bakery/bar/members club -> new_opening
+   - Announced but not yet open -> watching
+   - Competitor/reservation platform/hospitality tech news -> industry
+   - Celebrity/viral/collab/cultural moment -> culture
+   - AI/product news -> ai_product
+3. Extract the real facts. For new_opening/watching: name, date, blurb, city, and website/
+   instagram_handle/instagram_url/cover_image_post if findable. For industry/culture/
+   ai_product: headline, detail, so_what, city.
+4. CRITICAL — PRESERVE THE ORIGINAL LINK. If Georgia's input was a URL, your output's primary
+   link field (website/source_url for openings, url for news items) MUST be that EXACT URL,
+   character for character. Never substitute a different link you find while researching,
+   even one you think is a "better" source — the whole point is that she already chose it.
+5. so_what/blurb must answer: why should the ResX team care? Strategic, operational,
+   cultural, competitive, or product-relevant — max 15 words.
+
+Only reject a lead if:
+- broken: you genuinely cannot find any real content behind it — a dead link, nothing exists
+- duplicate: it matches an already-featured opening, a currently-tracked watching item, or a
+  recently-covered story above, with no materially new development
+- clearly_irrelevant: it has nothing to do with restaurants, hospitality, dining, or ResX's
+  business at all
+
+Do NOT reject a lead just because it seems minor, or because you personally wouldn't have
+picked it — Georgia already decided it's worth including by sending it. When genuinely in
+doubt, resolve it, don't reject it.
+
+Return ONLY valid JSON, no markdown:
+{{
+  "resolved": [
+    {{
+      "input": "... (exact copy of the original input, for matching)",
+      "category": "new_opening|watching|industry|culture|ai_product",
+      "name": "...", "date": "...", "blurb": "...", "website": "...",
+      "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "...",
+      "source_url": "...",
+      "headline": "...", "detail": "...", "so_what": "...", "url": "...", "city": "..."
+    }}
+  ],
+  "rejected": [
+    {{"input": "... (exact copy, for matching)", "reason": "broken|duplicate|clearly_irrelevant", "detail": "..."}}
+  ]
+}}
+Only include the fields relevant to the assigned category — name/date/blurb/website/
+instagram_handle/instagram_url/cover_image_post/source_url for new_opening/watching;
+headline/detail/so_what/url for industry/culture/ai_product. Always include "input",
+"category", and "city".
+"""
+    if holiday_hint:
+        prompt = f"CONTEXT FOR THIS RUN: {holiday_hint}\n\n" + prompt.lstrip()
+
+    result = call_anthropic(
+        messages=[{"role": "user", "content": prompt}],
+        system=(
+            "You are a meticulous researcher acting on a colleague's direct, high-priority "
+            "requests. Never invent facts. Never substitute a different link than the one "
+            "given. Return only valid JSON, no markdown."
+        ),
+        max_tokens=4096,
+    )
+
+    try:
+        clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
+        start = clean.index("{")
+        data, _ = json.JSONDecoder().raw_decode(clean, start)
+        if not isinstance(data, dict):
+            return {"resolved": [], "rejected": []}
+        return {"resolved": data.get("resolved", []) or [], "rejected": data.get("rejected", []) or []}
+    except Exception as e:
+        print(f"Error parsing pinned inputs research: {e}")
+        return {"resolved": [], "rejected": []}
+
+
+def _is_pre_resolved_pin(entry: dict) -> bool:
+    """A pin that already carries full digest-ready content (category + headline/name) —
+    e.g. one already hand-verified — skips the research call entirely rather than risk an
+    LLM subtly rewriting content that was already confirmed correct."""
+    return bool(entry.get("category")) and bool(entry.get("headline") or entry.get("name"))
+
+
+def _pin_input_key(entry: dict) -> str:
+    """The matching key for a pinned_inputs.json entry — used consistently everywhere an
+    entry needs to be identified, so the safety net never mismatches a pre-resolved pin
+    (which may have no "input" field) against what was actually resolved/rejected."""
+    return entry.get("input") or entry.get("url") or entry.get("website") or entry.get("source_url", "")
+
+
+def _finalize_pinned_story(item: dict, input_text: str, seen_openings: set,
+                            watching_context: list, today_iso: str) -> tuple:
+    """Applies the deterministic broken-link/duplicate backstop shared by both the
+    pre-resolved and freshly-researched pinned-input paths. Returns (story_or_None, skip_or_None)."""
+    link_field = "website" if item.get("category") in ("new_opening", "watching") else "url"
+    link = item.get(link_field, "") or item.get("source_url", "")
+    if link and check_broken(link):
+        return None, {
+            "date": today_iso, "input": input_text, "reason": "broken_link",
+            "detail": f"{link_field}={link!r} did not resolve", "url": link,
+        }
+
+    if item.get("category") in ("new_opening", "watching"):
+        ident = normalize_identity(item.get("name", ""), item.get("city", ""))
+        if item.get("category") == "new_opening" and item.get("name", "") in seen_openings:
+            return None, {
+                "date": today_iso, "input": input_text, "reason": "duplicate",
+                "detail": f"'{item.get('name')}' is already in seen_openings", "url": link,
+            }
+        watching_ids = {
+            w.get("id", normalize_identity(w.get("name", ""), w.get("city", "")))
+            for w in watching_context
+        }
+        if item.get("category") == "watching" and ident in watching_ids:
+            return None, {
+                "date": today_iso, "input": input_text, "reason": "duplicate",
+                "detail": f"'{item.get('name')}' is already tracked in watching", "url": link,
+            }
+
+    item["origin"] = "pinned"
+    item["id"] = link or f"pinned::{item.get('headline') or item.get('name', '')}"
+    return item, None
+
+
+def process_pinned_inputs(pinned_inputs: list, seen_openings: set, watching_context: list,
+                           recent_stories: list, today_iso: str, holiday_hint: str = None) -> tuple:
+    """Orchestrates pinned-input resolution with a safety net: every single entry in
+    pinned_inputs.json ends up either a resolved story or a logged skip — never silently
+    dropped, even if the model forgets one or a link turns out to be dead/duplicate."""
+    resolved_stories = []
+    skip_entries = []
+    matched_inputs = set()
+
+    already_resolved = [e for e in pinned_inputs if _is_pre_resolved_pin(e)]
+    raw_leads = [e for e in pinned_inputs if not _is_pre_resolved_pin(e)]
+
+    for entry in already_resolved:
+        input_text = _pin_input_key(entry)
+        matched_inputs.add(input_text)
+        story, skip = _finalize_pinned_story(dict(entry), input_text, seen_openings, watching_context, today_iso)
+        (resolved_stories.append(story) if story else skip_entries.append(skip))
+
+    result = research_pinned_inputs(raw_leads, seen_openings, watching_context, recent_stories, holiday_hint)
+
+    for item in result["resolved"]:
+        input_text = item.get("input", "")
+        matched_inputs.add(input_text)
+        story, skip = _finalize_pinned_story(item, input_text, seen_openings, watching_context, today_iso)
+        (resolved_stories.append(story) if story else skip_entries.append(skip))
+
+    for rej in result["rejected"]:
+        input_text = rej.get("input", "")
+        matched_inputs.add(input_text)
+        skip_entries.append({
+            "date": today_iso, "input": input_text,
+            "reason": rej.get("reason", "clearly_irrelevant"), "detail": rej.get("detail", ""),
+        })
+
+    # Safety net — never silently drop a pinned input the model didn't address
+    for lead in pinned_inputs:
+        lead_input = _pin_input_key(lead)
+        if lead_input not in matched_inputs:
+            skip_entries.append({
+                "date": today_iso, "input": lead_input, "reason": "not_addressed_by_model",
+                "detail": "the research pass did not return a resolution or rejection for this input",
+            })
+
+    return resolved_stories, skip_entries
 
 
 # ---------------------------------------------------------------------------
@@ -893,7 +1146,7 @@ actually the same restaurant, even if renamed or a qualifier like "(Williamsburg
 now that it's open):
 {watching_json}
 
-Do three things:
+This is an EXECUTIVE BRIEFING, not a news summary. Do four things:
 
 1. MERGE DUPLICATES. If two or more candidates are fundamentally about the same underlying
    restaurant/entity/event, merge them into ONE story — keep the single best title/summary
@@ -918,18 +1171,32 @@ Do three things:
       chef's restaurant being an Instagram-viral celebrity hangout -> culture). Never assign
       the same story to two categories.
 
-3. RANK BY IMPORTANCE within each of industry/culture/ai_product: assign importance_rank 1..N
-   per category (1 = most important), based on specificity, relevance to a last-minute dining
-   reservation marketplace in NYC/London for 25-35 year olds, and whether the story has a
-   genuinely notable, concrete hook (not generic trend commentary). new_opening/watching items
-   don't need ranking — set importance_rank to 0 for those.
+3. FILTER FOR EXECUTIVE RELEVANCE — non-pinned items only. Every remaining story must answer:
+   why should the ResX team care? That can be strategic, operational, cultural, competitive,
+   or product-related. If a story is merely interesting but wouldn't change what the team
+   would actually discuss internally that week, DROP IT from your output entirely — do not
+   include it just because it happened. This filter does NOT apply to items whose "origin"
+   field is "pinned" — those were already explicitly requested by Georgia and were already
+   vetted for relevance before reaching you; never drop a pinned item for relevance reasons,
+   only for being an exact duplicate of another item in this same pool.
+
+4. RANK BY IMPORTANCE within each of industry/culture/ai_product: assign importance_rank 1..N
+   per category (1 = most important). Pinned items ALWAYS outrank non-pinned items in the same
+   category — give every pinned item a lower (more important) importance_rank number than any
+   non-pinned item, regardless of how individually notable the non-pinned items are; pinned
+   input overrides normal ranking. Among pinned items, and separately among non-pinned items,
+   rank by specificity, relevance to a last-minute dining reservation marketplace in NYC/London
+   for 25-35 year olds, and whether the story has a genuinely notable, concrete hook (not
+   generic trend commentary). new_opening/watching items don't need ranking — set
+   importance_rank to 0 for those.
 
 Do not invent facts. Do not soften or genericize any story's summary/so_what/detail/why_it_matters
 — preserve the existing specificity and insider detail exactly as written.
 
-Return ONLY a valid JSON array, no markdown: every story object with all of its original fields
-preserved, plus "category" (final), "importance_rank" (int), and "merged_from" (list of the
-input ids that were merged into this story, [] if it wasn't a merge).
+Return ONLY a valid JSON array, no markdown: every SURVIVING story object (dropped stories
+simply don't appear in the array) with all of its original fields preserved, plus "category"
+(final), "importance_rank" (int), and "merged_from" (list of the input ids that were merged
+into this story, [] if it wasn't a merge).
 """
 
     if holiday_hint:
@@ -938,8 +1205,11 @@ input ids that were merged into this story, [] if it wasn't a merge).
     result = call_anthropic(
         messages=[{"role": "user", "content": prompt}],
         system=(
-            "You are a meticulous editor. You never invent facts, never soften specific "
-            "details into generic ones, and never let the same story appear twice. "
+            "You are the executive editor of a briefing, not a news aggregator. You never "
+            "invent facts, never soften specific details into generic ones, never let the "
+            "same story appear twice, and you cut anything that wouldn't change what the "
+            "team discusses this week — except pinned items, which are never dropped for "
+            "relevance and always outrank non-pinned items in their category. "
             "Return only a valid JSON array, no markdown."
         ),
         max_tokens=6000,
@@ -978,6 +1248,7 @@ def format_opening_item(item: dict) -> str:
     name = item.get("name", "")
     date = item.get("date", "")
     blurb = item.get("blurb", "")
+    so_what = item.get("so_what", "")
     website = item.get("website", "")
     ig_handle = item.get("instagram_handle", "")
     ig_url = item.get("instagram_url", "")
@@ -998,6 +1269,8 @@ def format_opening_item(item: dict) -> str:
     lines = [name_str]
     if blurb:
         lines.append(blurb)
+    if so_what:
+        lines.append(f"→ {so_what}")
 
     return "\n".join(lines)
 
@@ -1169,29 +1442,6 @@ def _story_entries(items: list, today_iso: str) -> list:
     return entries
 
 
-def _pinned_to_story(pin: dict) -> dict:
-    """Converts a manually pinned story into the common pool shape. Category is treated as
-    authoritative by edit_and_rank's prompt (see the "origin" == "pinned" rule) — pins get
-    ranked alongside everything else researched this run, never recategorized.
-
-    Applies the same live link verification research_openings already applies to its own
-    output — a manually pinned link deserves the same integrity guarantee as a researched
-    one, since it ends up in the same digest either way."""
-    story = {k: v for k, v in pin.items() if k != "section"}
-    story["category"] = pin.get("section", "culture")
-    story["origin"] = "pinned"
-
-    for link_field in ("url", "website", "instagram_url", "cover_image_post", "source_url"):
-        if story.get(link_field) and not verify_url(story[link_field]):
-            print(f"Pinned story link failed verification, dropping: {link_field}={story[link_field]!r}")
-            story[link_field] = ""
-    if not story.get("instagram_url"):
-        story["instagram_handle"] = ""
-
-    story["id"] = story.get("url") or story.get("website") or f"pinned::{story.get('headline') or story.get('name', '')}"
-    return story
-
-
 def main():
     today = datetime.date.today()
     today_str = today.strftime("%B %d, %Y")
@@ -1217,8 +1467,9 @@ def main():
         seen_openings = set(load_json(SEEN_OPENINGS_FILE, []))
         watching = load_json(WATCHING_FILE, [])
 
-        # Load pinned stories (manually added between runs)
-        pinned = load_json(PINNED_STORIES_FILE, [])
+        # Load pinned inputs (manually submitted leads — high-priority, never silently ignored)
+        pinned_inputs = load_json(PINNED_INPUTS_FILE, [])
+        skipped_log = load_json(SKIPPED_ITEMS_LOG_FILE, [])
 
         # Load cross-run story history (last 14 days = ~4 runs)
         seen_stories_raw = load_json(SEEN_STORIES_FILE, [])
@@ -1289,9 +1540,16 @@ def main():
             nyc_data.get("items", []) + london_data.get("items", []),
             new_watching_candidates, industry_items, culture_items, ai_items,
         )
-        for pin in pinned:
-            print(f"Pinned story queued for {pin.get('section', 'culture')!r}: {pin.get('headline', '')}")
-        pool += [_pinned_to_story(p) for p in pinned]
+
+        print(f"Processing {len(pinned_inputs)} pinned input(s)...")
+        pinned_stories, pinned_skip_entries = process_pinned_inputs(
+            pinned_inputs, seen_openings, watching_carried, recent_stories, today_iso, holiday_hint
+        )
+        for s in pinned_stories:
+            print(f"Pinned input resolved -> {s.get('category')}: {s.get('headline') or s.get('name', '')}")
+        for e in pinned_skip_entries:
+            print(f"Pinned input skipped ({e.get('reason')}): {e.get('input', '')!r} — {e.get('detail', '')}")
+        pool += pinned_stories
 
         print(f"Editing & ranking {len(pool)} candidate stories...")
         final_stories = edit_and_rank(pool, watching_context=watching_carried, holiday_hint=holiday_hint)
@@ -1327,8 +1585,13 @@ def main():
         save_json(WATCHING_FILE, watching)
         save_json(SEEN_OPENINGS_FILE, list(seen_openings))
         save_json(SEEN_STORIES_FILE, all_stories)
-        if pinned:
-            save_json(PINNED_STORIES_FILE, [])
+        # Every pinned input was resolved-or-skipped-with-reason above (see process_pinned_inputs'
+        # safety net) — safe to clear the whole queue, nothing is silently dropped.
+        if pinned_inputs:
+            save_json(PINNED_INPUTS_FILE, [])
+        skip_keep_cutoff = (today - datetime.timedelta(days=30)).isoformat()
+        all_skips = [e for e in skipped_log if e.get("date", "") >= skip_keep_cutoff] + pinned_skip_entries
+        save_json(SKIPPED_ITEMS_LOG_FILE, all_skips)
         save_json(LAST_POST_FILE, {
             "date": today_iso, "status": "completed", "run_id": run_id,
             "trigger": trigger, "posted_at": _now_utc().isoformat(),
@@ -1337,7 +1600,7 @@ def main():
         state_paths = [
             str(p) for p in (
                 WATCHING_FILE, SEEN_OPENINGS_FILE, SEEN_STORIES_FILE,
-                PINNED_STORIES_FILE, COMPETITORS_FILE, LAST_POST_FILE,
+                PINNED_INPUTS_FILE, SKIPPED_ITEMS_LOG_FILE, COMPETITORS_FILE, LAST_POST_FILE,
             )
         ]
         if not git_commit_and_push(state_paths, f"bot: update data files [skip ci]"):
