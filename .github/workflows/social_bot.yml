@@ -5,6 +5,15 @@ on:
     # Daily at 8:15am ET (12:15 UTC during EDT, UTC-4)
     - cron: "15 12 * * *"
   workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      force_post:
+        description: "Post even if already posted today (marks the message as a forced re-run)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Dry run — print the Slack payload, post nothing, write no state"
+        type: boolean
+        default: false
 
 jobs:
   run-social-bot:
@@ -26,12 +35,15 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_SOCIAL_WEBHOOK_URL: ${{ secrets.SLACK_SOCIAL_WEBHOOK_URL }}
+          FORCE_POST: ${{ (inputs.force_post && '1') || '0' }}
+          DRY_RUN: ${{ (inputs.dry_run && '1') || '0' }}
         run: python social_bot.py
 
-      - name: Commit updated seen UGC file
+      - name: Commit updated data files
+        if: ${{ !inputs.dry_run }}
         run: |
           git config user.name "resx-digest-bot"
           git config user.email "bot@resx.app"
-          git add data/seen_ugc.json data/last_social_post.json
+          git add data/seen_ugc.json data/last_social_post.json data/social_pinned_leads.json data/social_skipped_log.json
           git diff --cached --quiet || git commit -m "bot: update seen UGC [skip ci]"
           git push
