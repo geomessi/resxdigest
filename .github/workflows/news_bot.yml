@@ -3,15 +3,22 @@ name: ResX News Bot
 on:
   schedule:
     # Runs Mon and Fri at 8:15am ET (12:15 UTC during EDT, UTC-4); offset avoids top-of-hour GitHub Actions congestion
+    # Note: GitHub deprioritizes/delays low-frequency schedules like this one — watchdog.yml
+    # polls more often and retriggers this workflow if it detects a missed run.
     - cron: "15 12 * * 1,5"
   workflow_dispatch: # allow manual trigger from GitHub UI
+    inputs:
+      force_post:
+        description: "Post even if already completed today (marks the run as forced)"
+        type: boolean
+        default: false
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write # needed to commit data files back to repo
+      contents: write # needed for bot.py to claim the run slot and commit data files back to repo
 
     steps:
       - name: Checkout repo
@@ -26,12 +33,6 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          FORCE_POST: ${{ (inputs.force_post && '1') || '0' }}
+          TRIGGER_TYPE: ${{ github.event_name == 'schedule' && 'scheduled' || 'manual' }}
         run: python bot.py
-
-      - name: Commit updated data files
-        run: |
-          git config user.name "resx-digest-bot"
-          git config user.email "bot@resx.app"
-          git add data/seen_openings.json data/competitors.json data/watching.json data/seen_stories.json data/pinned_stories.json data/last_post.json
-          git diff --cached --quiet || git commit -m "bot: update data files [skip ci]"
-          git push

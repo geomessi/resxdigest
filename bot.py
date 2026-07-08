@@ -16,6 +16,8 @@ Sections (in order):
 import os
 import json
 import re
+import subprocess
+import time
 import urllib.request
 import datetime
 from pathlib import Path
@@ -29,6 +31,14 @@ WATCHING_FILE       = Path("data/watching.json")
 SEEN_STORIES_FILE   = Path("data/seen_stories.json")
 PINNED_STORIES_FILE = Path("data/pinned_stories.json")
 LAST_POST_FILE      = Path("data/last_post.json")
+RUN_LOG_FILE        = Path("data/run_log.json")
+
+# Only bot.py runs git commands for itself when actually running in CI —
+# never touch the caller's working tree during local/manual testing.
+IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+
+CLAIM_STALE_MINUTES = 15  # a "running" claim older than this is treated as an abandoned/crashed run
+MAX_GIT_RETRIES = 5
 
 # ---------------------------------------------------------------------------
 # Signal accounts — used as vibe/trend calibration, NOT cited directly
@@ -198,6 +208,115 @@ def verify_url(url: str) -> bool:
             return resp.status < 400
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Git + run-claim helpers
+#
+# The daily/scheduled-run guard only protects against duplicate posts if its
+# state survives a `git push` — and pushes race whenever two runs (a delayed
+# native schedule, a watchdog retrigger, a manual click) land close together.
+# So instead of "post, then commit at the very end", we CLAIM the run slot
+# with a commit+push BEFORE doing any expensive research, using git's
+# fast-forward-only push as the atomic arbiter of who wins a race. The loser
+# re-fetches, sees the winner's claim, and backs off before ever calling the
+# Anthropic API or Slack.
+# ---------------------------------------------------------------------------
+
+def _git(*args) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, text=True)
+
+
+def git_configure_identity():
+    if not IN_CI:
+        return
+    _git("config", "user.name", "resx-digest-bot")
+    _git("config", "user.email", "bot@resx.app")
+
+
+def git_sync_to_remote_main():
+    """Discard any local commit and reset to whatever origin/main actually has —
+    safe here because this is an ephemeral CI checkout, never a local working tree."""
+    _git("fetch", "origin", "main")
+    _git("reset", "--hard", "origin/main")
+
+
+def git_commit_and_push(paths: list, message: str) -> bool:
+    """Commit the given paths and push, retrying on a losing race by resetting
+    to origin and letting the caller recompute + retry. Returns True iff the
+    push (or an empty no-op commit) landed."""
+    if not IN_CI:
+        return True  # local/manual runs never write to git; treat as a no-op success
+
+    for attempt in range(1, MAX_GIT_RETRIES + 1):
+        _git("add", *paths)
+        diff = _git("diff", "--cached", "--quiet")
+        if diff.returncode == 0:
+            return True  # nothing changed — already up to date, not a failure
+        commit = _git("commit", "-m", message)
+        if commit.returncode != 0:
+            print(f"git commit failed (attempt {attempt}): {commit.stderr.strip()}")
+            return False
+        push = _git("push", "origin", "HEAD:main")
+        if push.returncode == 0:
+            return True
+        print(f"git push lost the race (attempt {attempt}/{MAX_GIT_RETRIES}): {push.stderr.strip()}")
+        git_sync_to_remote_main()
+        time.sleep(1.5 * attempt)
+    return False
+
+
+def _now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _parse_iso(ts: str):
+    try:
+        return datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def claim_todays_run(today_iso: str, trigger: str, run_id: str, force: bool) -> tuple[bool, str]:
+    """
+    Attempts to atomically claim today's run slot. Returns (claimed, reason).
+    reason is only meaningful when claimed is False, for logging.
+    """
+    for attempt in range(1, MAX_GIT_RETRIES + 1):
+        state = load_json(LAST_POST_FILE, {})
+        if state.get("date") == today_iso:
+            status = state.get("status", "completed")  # older files predate "status"; treat as completed
+            if status == "completed" and not force:
+                return False, f"already completed today at {state.get('posted_at', 'unknown time')}"
+            if status == "running":
+                started = _parse_iso(state.get("started_at", ""))
+                stale = started is None or (_now_utc() - started) > datetime.timedelta(minutes=CLAIM_STALE_MINUTES)
+                if not stale:
+                    return False, f"another run claimed this slot at {state.get('started_at')} (trigger={state.get('trigger')}) and hasn't finished or timed out yet"
+                print(f"Found a stale 'running' claim from {state.get('started_at')} — treating as abandoned and reclaiming")
+
+        save_json(LAST_POST_FILE, {
+            "date": today_iso, "status": "running", "run_id": run_id,
+            "trigger": trigger, "started_at": _now_utc().isoformat(),
+        })
+        if git_commit_and_push([str(LAST_POST_FILE)], f"bot: claim {today_iso} run ({trigger}) [skip ci]"):
+            return True, ""
+        print(f"Lost the claim race, retrying ({attempt}/{MAX_GIT_RETRIES})...")
+
+    return False, "could not win the claim race after retries"
+
+
+def log_run_event(today_iso: str, trigger: str, outcome: str, detail: str = ""):
+    """Best-effort structured history: data/run_log.json, 30-day rolling window."""
+    log = load_json(RUN_LOG_FILE, [])
+    log.append({
+        "date": today_iso, "timestamp": _now_utc().isoformat(),
+        "trigger": trigger, "outcome": outcome, "detail": detail,
+    })
+    cutoff = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
+    log = [e for e in log if e.get("date", "") >= cutoff]
+    save_json(RUN_LOG_FILE, log)
+    git_commit_and_push([str(RUN_LOG_FILE)], f"bot: log {outcome} run [skip ci]")
 
 
 # ---------------------------------------------------------------------------
@@ -441,10 +560,22 @@ def research_section(
 
     seen_instruction = ""
     if seen_stories:
-        keys_str = "\n".join(f"- {k}" for k in seen_stories[:60])
+        covered_str = "\n".join(
+            f"- {s.get('headline', '')} — {s.get('detail', '')} ({s.get('so_what', '')})"
+            for s in seen_stories[:60]
+        )
         seen_instruction = (
-            f"\n\nIMPORTANT: These stories appeared in recent digest runs — "
-            f"do NOT cover the same events or articles. Find fresh content from THIS WEEK:\n{keys_str}"
+            f"\n\nIMPORTANT — already covered in recent digests, do not just re-report these:\n"
+            f"{covered_str}\n\n"
+            f"For each one: only cover the same underlying subject again if there is a genuinely "
+            f"MATERIAL new development since — e.g. a restaurant that was 'coming soon' has now "
+            f"officially opened or confirmed its date, a funding rumor is now an official confirmed "
+            f"round, a launch expands to a new city, a new partnership is announced, or a teased "
+            f"date is now confirmed. Do NOT re-cover the same announcement reworded, the same menu "
+            f"item, or the same opening with no new facts — that is a duplicate even if the headline "
+            f"or source differs. If you do include a follow-up to something above, make the new "
+            f"development explicit in 'detail' or 'so_what' (e.g. 'now confirmed for Sept 12', not "
+            f"a repeat of the original teaser)."
         )
 
     if section == "landscape":
@@ -815,166 +946,202 @@ def build_slack_blocks(
 # Main
 # ---------------------------------------------------------------------------
 
-def _story_keys(items: list) -> list[str]:
-    """Extract dedup keys (url preferred, headline fallback) from a list of story dicts."""
-    keys = []
+def _story_entries(items: list, today_iso: str) -> list:
+    """Build dedup entries (key + the actual coverage text) from a list of story dicts,
+    so a later run can judge whether a repeat has a materially new development."""
+    entries = []
     for item in items:
         key = item.get("url") or item.get("headline", "")
-        if key:
-            keys.append(key)
-    return keys
+        if not key:
+            continue
+        entries.append({
+            "key": key, "date": today_iso,
+            "headline": item.get("headline", ""),
+            "detail": item.get("detail", ""),
+            "so_what": item.get("so_what", ""),
+        })
+    return entries
 
 
 def main():
     today = datetime.date.today()
     today_str = today.strftime("%B %d, %Y")
     today_iso = today.isoformat()
-    print(f"Running ResX News Bot — {today_str}")
 
-    last_post = load_json(LAST_POST_FILE, {})
-    if last_post.get("date") == today_iso and os.environ.get("FORCE_POST") != "1":
-        print(
-            f"Already posted today ({today_iso}) at {last_post.get('posted_at', 'unknown time')} "
-            f"— skipping to avoid a duplicate digest. Set FORCE_POST=1 to override."
-        )
+    force_post = os.environ.get("FORCE_POST") == "1"
+    trigger = "forced" if force_post else os.environ.get("TRIGGER_TYPE", "manual")
+    run_id = os.environ.get("GITHUB_RUN_ID", f"local-{int(time.time())}")
+
+    print(f"Running ResX News Bot — {today_str} [{trigger.upper()}]")
+
+    git_configure_identity()
+
+    claimed, skip_reason = claim_todays_run(today_iso, trigger, run_id, force=force_post)
+    if not claimed:
+        print(f"[SKIPPED] {skip_reason}")
+        log_run_event(today_iso, trigger, "skipped", skip_reason)
         return
 
-    seen_openings = set(load_json(SEEN_OPENINGS_FILE, []))
-    watching = load_json(WATCHING_FILE, [])
+    print("[STARTED] Claimed today's run slot")
 
-    # Load pinned stories (manually added between runs)
-    pinned = load_json(PINNED_STORIES_FILE, [])
+    try:
+        seen_openings = set(load_json(SEEN_OPENINGS_FILE, []))
+        watching = load_json(WATCHING_FILE, [])
 
-    # Load cross-run story dedup keys (last 14 days = ~4 runs)
-    seen_stories_raw = load_json(SEEN_STORIES_FILE, [])
-    cutoff = (today - datetime.timedelta(days=14)).isoformat()
-    recent_story_keys = [e["key"] for e in seen_stories_raw if e.get("date", "") >= cutoff]
-    print(f"Loaded {len(recent_story_keys)} recent story keys for dedup")
+        # Load pinned stories (manually added between runs)
+        pinned = load_json(PINNED_STORIES_FILE, [])
 
-    # Compute holiday context
-    holiday_ctx = get_holiday_context(today)
-    special_header = holiday_ctx["special_header"]
-    holiday_hint = " ".join(holiday_ctx["prompt_hints"]) if holiday_ctx["prompt_hints"] else None
-    if special_header:
-        print(f"Holiday special edition: {special_header}")
-    if holiday_hint:
-        print(f"Holiday hint injected: {holiday_hint[:80]}...")
+        # Load cross-run story history (last 14 days = ~4 runs)
+        seen_stories_raw = load_json(SEEN_STORIES_FILE, [])
+        cutoff = (today - datetime.timedelta(days=14)).isoformat()
+        recent_stories = [e for e in seen_stories_raw if e.get("date", "") >= cutoff]
+        print(f"Loaded {len(recent_stories)} recent stories for dedup")
 
-    print("Refreshing competitor list...")
-    competitors, new_competitors = refresh_competitors()
+        # Compute holiday context
+        holiday_ctx = get_holiday_context(today)
+        special_header = holiday_ctx["special_header"]
+        holiday_hint = " ".join(holiday_ctx["prompt_hints"]) if holiday_ctx["prompt_hints"] else None
+        if special_header:
+            print(f"Holiday special edition: {special_header}")
+        if holiday_hint:
+            print(f"Holiday hint injected: {holiday_hint[:80]}...")
 
-    print("Researching NYC openings...")
-    nyc_result = research_openings("nyc", seen_openings, watching)
+        print("Refreshing competitor list...")
+        competitors, new_competitors = refresh_competitors()
 
-    print("Researching London openings...")
-    london_result = research_openings("london", seen_openings, watching)
+        print("Researching NYC openings...")
+        nyc_result = research_openings("nyc", seen_openings, watching)
 
-    nyc_data    = nyc_result.get("just_opened", {"items": [], "ugc": []})
-    london_data = london_result.get("just_opened", {"items": [], "ugc": []})
+        print("Researching London openings...")
+        london_result = research_openings("london", seen_openings, watching)
 
-    # Graduate watching items that have now opened
-    opened_names = {
-        i["name"].lower()
-        for i in nyc_data.get("items", []) + london_data.get("items", [])
-    }
-    watching = [w for w in watching if w["name"].lower() not in opened_names]
+        nyc_data    = nyc_result.get("just_opened", {"items": [], "ugc": []})
+        london_data = london_result.get("just_opened", {"items": [], "ugc": []})
 
-    # Merge new coming_soon items (deduplicated by name)
-    watching_names = {w["name"].lower() for w in watching}
-    for item in nyc_result.get("coming_soon", []) + london_result.get("coming_soon", []):
-        if item["name"].lower() not in watching_names:
-            watching.append(item)
-            watching_names.add(item["name"].lower())
+        # Graduate watching items that have now opened
+        opened_names = {
+            i["name"].lower()
+            for i in nyc_data.get("items", []) + london_data.get("items", [])
+        }
+        watching = [w for w in watching if w["name"].lower() not in opened_names]
 
-    save_json(WATCHING_FILE, watching)
+        # Merge new coming_soon items (deduplicated by name)
+        watching_names = {w["name"].lower() for w in watching}
+        for item in nyc_result.get("coming_soon", []) + london_result.get("coming_soon", []):
+            if item["name"].lower() not in watching_names:
+                watching.append(item)
+                watching_names.add(item["name"].lower())
 
-    print("Researching hospitality...")
-    hospitality = research_section("hospitality", seen_stories=recent_story_keys, holiday_hint=holiday_hint)
-    used = list(hospitality)
+        print("Researching hospitality...")
+        hospitality = research_section("hospitality", seen_stories=recent_stories, holiday_hint=holiday_hint)
+        used = list(hospitality)
 
-    print("Researching industry...")
-    industry = research_section("industry", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
-    used += industry
+        print("Researching industry...")
+        industry = research_section("industry", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
+        used += industry
 
-    print("Researching landscape...")
-    landscape = research_section("landscape", competitors, exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
-    used += landscape
+        print("Researching landscape...")
+        landscape = research_section("landscape", competitors, exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
+        used += landscape
 
-    print("Researching city pulse...")
-    city_pulse = research_section("city_pulse", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
-    used += city_pulse
+        print("Researching city pulse...")
+        city_pulse = research_section("city_pulse", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
+        used += city_pulse
 
-    print("Researching specials & collabs...")
-    specials = research_section("specials", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
-    used += specials
+        print("Researching specials & collabs...")
+        specials = research_section("specials", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
+        used += specials
 
-    print("Researching AI & tech...")
-    ai_tech = research_section("ai_tech", exclude=used, seen_stories=recent_story_keys, holiday_hint=holiday_hint)
+        print("Researching AI & tech...")
+        ai_tech = research_section("ai_tech", exclude=used, seen_stories=recent_stories, holiday_hint=holiday_hint)
 
-    # Inject pinned stories into their target sections
-    section_map = {
-        "hospitality": hospitality,
-        "industry":    industry,
-        "landscape":   landscape,
-        "city_pulse":  city_pulse,
-        "specials":    specials,
-        "ai_tech":     ai_tech,
-    }
-    for pin in pinned:
-        target_key = pin.get("section", "city_pulse")
-        target = section_map.get(target_key)
-        if target is not None:
-            target.append({k: v for k, v in pin.items() if k != "section"})
-            print(f"Pinned story injected into {target_key!r}: {pin.get('headline', '')}")
+        # Inject pinned stories into their target sections
+        section_map = {
+            "hospitality": hospitality,
+            "industry":    industry,
+            "landscape":   landscape,
+            "city_pulse":  city_pulse,
+            "specials":    specials,
+            "ai_tech":     ai_tech,
+        }
+        for pin in pinned:
+            target_key = pin.get("section", "city_pulse")
+            target = section_map.get(target_key)
+            if target is not None:
+                target.append({k: v for k, v in pin.items() if k != "section"})
+                print(f"Pinned story injected into {target_key!r}: {pin.get('headline', '')}")
 
-    # Update seen openings
-    new_names = (
-        [item["name"] for item in nyc_data.get("items", [])]
-        + [item["name"] for item in london_data.get("items", [])]
-    )
-    seen_openings.update(new_names)
-    save_json(SEEN_OPENINGS_FILE, list(seen_openings))
+        # Update seen openings
+        new_names = (
+            [item["name"] for item in nyc_data.get("items", [])]
+            + [item["name"] for item in london_data.get("items", [])]
+        )
+        seen_openings.update(new_names)
 
-    # Save cross-run story dedup keys (keep last 30 days to cap file size)
-    new_story_entries = [
-        {"key": k, "date": today_iso}
-        for k in _story_keys(hospitality + industry + landscape + city_pulse + specials + ai_tech)
-    ]
-    keep_cutoff = (today - datetime.timedelta(days=30)).isoformat()
-    all_stories = [e for e in seen_stories_raw if e.get("date", "") >= keep_cutoff] + new_story_entries
-    save_json(SEEN_STORIES_FILE, all_stories)
+        # Save cross-run story history (keep last 30 days to cap file size)
+        new_story_entries = _story_entries(
+            hospitality + industry + landscape + city_pulse + specials + ai_tech, today_iso
+        )
+        keep_cutoff = (today - datetime.timedelta(days=30)).isoformat()
+        all_stories = [e for e in seen_stories_raw if e.get("date", "") >= keep_cutoff] + new_story_entries
 
-    # Clear pinned stories now that they've been included
-    if pinned:
-        save_json(PINNED_STORIES_FILE, [])
+        print("Building Slack blocks...")
+        blocks = build_slack_blocks(
+            date_str=today_str,
+            nyc_data=nyc_data,
+            london_data=london_data,
+            watching=watching,
+            hospitality=hospitality,
+            industry=industry,
+            landscape=landscape,
+            city_pulse=city_pulse,
+            specials=specials,
+            ai_tech=ai_tech,
+            new_competitors=new_competitors,
+            special_header=special_header,
+        )
 
-    print("Building Slack blocks...")
-    blocks = build_slack_blocks(
-        date_str=today_str,
-        nyc_data=nyc_data,
-        london_data=london_data,
-        watching=watching,
-        hospitality=hospitality,
-        industry=industry,
-        landscape=landscape,
-        city_pulse=city_pulse,
-        specials=specials,
-        ai_tech=ai_tech,
-        new_competitors=new_competitors,
-        special_header=special_header,
-    )
+        print(f"Posting to Slack... ({len(blocks)} blocks)")
+        for i, b in enumerate(blocks):
+            txt = b.get("text", {}).get("text", "")
+            if txt:
+                print(f"  block[{i}] len={len(txt)}: {txt[:80]!r}")
+        post_to_slack(blocks)
 
-    print(f"Posting to Slack... ({len(blocks)} blocks)")
-    for i, b in enumerate(blocks):
-        txt = b.get("text", {}).get("text", "")
-        if txt:
-            print(f"  block[{i}] len={len(txt)}: {txt[:80]!r}")
-    post_to_slack(blocks)
-    save_json(LAST_POST_FILE, {
-        "date": today_iso,
-        "posted_at": datetime.datetime.utcnow().isoformat() + "Z",
-    })
-    print("Done ✓")
+        # Persist everything from this run in one shot, now that the post landed
+        save_json(WATCHING_FILE, watching)
+        save_json(SEEN_OPENINGS_FILE, list(seen_openings))
+        save_json(SEEN_STORIES_FILE, all_stories)
+        if pinned:
+            save_json(PINNED_STORIES_FILE, [])
+        save_json(LAST_POST_FILE, {
+            "date": today_iso, "status": "completed", "run_id": run_id,
+            "trigger": trigger, "posted_at": _now_utc().isoformat(),
+        })
+
+        state_paths = [
+            str(p) for p in (
+                WATCHING_FILE, SEEN_OPENINGS_FILE, SEEN_STORIES_FILE,
+                PINNED_STORIES_FILE, COMPETITORS_FILE, LAST_POST_FILE,
+            )
+        ]
+        if not git_commit_and_push(state_paths, f"bot: update data files [skip ci]"):
+            print("WARNING: final state commit did not land after retries — next run may not see today's post")
+
+        log_run_event(today_iso, trigger, "completed", f"{len(blocks)} blocks posted")
+        print("[COMPLETED] Done ✓")
+
+    except Exception as e:
+        print(f"[FAILED] {e}")
+        # Best-effort: mark the claim as failed so a legitimate retry doesn't have to
+        # wait out the full staleness window.
+        save_json(LAST_POST_FILE, {
+            "date": today_iso, "status": "failed", "run_id": run_id,
+            "trigger": trigger, "failed_at": _now_utc().isoformat(), "error": str(e),
+        })
+        git_commit_and_push([str(LAST_POST_FILE)], f"bot: mark {today_iso} run failed [skip ci]")
+        log_run_event(today_iso, trigger, "failed", str(e))
+        raise
 
 
 if __name__ == "__main__":

@@ -13,9 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      contents: read
 
     steps:
-      - name: Re-trigger bot if it missed today's run
+      # Checks the bot's own state file (data/last_post.json on main) instead of GitHub
+      # Actions run status — a run can post successfully to Slack and still show up as
+      # "failure" (e.g. a later step errors), which made the old status-based check
+      # retrigger the bot even though a real post had already gone out. Reading the
+      # same claim file bot.py itself writes keeps this watchdog and the bot's own
+      # same-day guard as one single source of truth.
+      - name: Check current post state and re-trigger bot if needed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -26,16 +33,36 @@ jobs:
           fi
 
           TODAY=$(date -u +%Y-%m-%d)
-          ALREADY_RAN=$(gh run list \
-            --workflow="news_bot.yml" \
-            --repo "$GITHUB_REPOSITORY" \
-            --limit 10 \
-            --json createdAt,status \
-            --jq "[.[] | select(.createdAt | startswith(\"$TODAY\")) | select(.status | IN(\"success\", \"in_progress\", \"queued\"))] | length")
+          STATE=$(gh api "repos/$GITHUB_REPOSITORY/contents/data/last_post.json?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo '{}')
+          [ -z "$STATE" ] && STATE='{}'
 
-          if [ "$ALREADY_RAN" = "0" ]; then
-            echo "Bot missed today's run — re-triggering"
+          STATE_DATE=$(echo "$STATE" | jq -r '.date // empty')
+          STATUS=$(echo "$STATE" | jq -r '.status // "completed"')  # files from before this field existed = a completed run
+          STARTED_AT=$(echo "$STATE" | jq -r '.started_at // empty')
+
+          if [ "$STATE_DATE" != "$TODAY" ]; then
+            echo "No run recorded for today ($TODAY) — retriggering"
             gh workflow run news_bot.yml --repo "$GITHUB_REPOSITORY" --ref main
-          else
-            echo "Bot already ran today — all good"
+            exit 0
           fi
+
+          if [ "$STATUS" = "completed" ]; then
+            echo "Already completed today's run ($(echo "$STATE" | jq -r '.posted_at // "unknown time"')) — nothing to do"
+            exit 0
+          fi
+
+          if [ "$STATUS" = "running" ] && [ -n "$STARTED_AT" ]; then
+            STARTED_EPOCH=$(date -u -d "$STARTED_AT" +%s 2>/dev/null || echo 0)
+            NOW_EPOCH=$(date -u +%s)
+            AGE_MIN=$(( (NOW_EPOCH - STARTED_EPOCH) / 60 ))
+            if [ "$STARTED_EPOCH" != "0" ] && [ "$AGE_MIN" -lt 15 ]; then
+              echo "A run claimed today's slot ${AGE_MIN}m ago and hasn't finished — leaving it alone"
+              exit 0
+            fi
+            echo "The claimed run looks stale (${AGE_MIN}m old) — retriggering"
+            gh workflow run news_bot.yml --repo "$GITHUB_REPOSITORY" --ref main
+            exit 0
+          fi
+
+          echo "Today's run is in status '$STATUS' — retriggering"
+          gh workflow run news_bot.yml --repo "$GITHUB_REPOSITORY" --ref main
