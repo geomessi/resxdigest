@@ -31,6 +31,7 @@ SKIPPED_LOG_FILE = Path("data/social_skipped_log.json")
 
 SCORE_THRESHOLD = 3.5  # average of 5 axes, each 1-5; below this a researched item is dropped
 SCORE_AXES = ("freshness", "cultural_relevance", "resx_relevance", "source_quality", "actionability")
+FRESHNESS_CUTOFF_DAYS = 3  # hard gate on posted_days_ago; independent of the self-rated freshness axis
 
 NYC_SIGNAL_ACCOUNTS = [
     "@tinx (aspirational 25-35 NYC city life, Rich Mom energy)",
@@ -134,6 +135,12 @@ Today is {datetime.date.today().strftime("%A, %B %d, %Y")}. Search for content f
 24 hours only. Nothing older — prioritize things just starting to take off (posted minutes ago,
 soft-opened yesterday, announced this morning) over stuff that's already fully saturated or that
 you'd only know about from an old article.
+
+For every REPOST or POST_IDEA, report "posted_days_ago" — the actual number of days since the
+specific post was published, based on what the web_search result actually shows (a timestamp,
+an "X days/weeks ago" snippet, a dateline). Never guess or assume 0 — if you can't tell how old
+a post actually is from what you retrieved, report 999 rather than assuming it's fresh. For a
+POST_IDEA backed by multiple posts, report the age of the OLDEST of the backing posts.
 
 Before including anything, ask: would this feel native on Instagram Stories today? If not, skip
 it. Every item should make the team think "I wish we'd thought of that." If it doesn't create
@@ -266,12 +273,12 @@ Return ONLY a valid JSON object, no markdown:
 {{
   "opportunities": [
     {{"type": "repost", "origin": "researched|pinned", "pinned_input": "...", "headline": "...",
-      "subject": "...", "city": "...",
+      "subject": "...", "city": "...", "posted_days_ago": 0,
       "scores": {{"freshness": 1, "cultural_relevance": 1, "resx_relevance": 1,
                   "source_quality": 1, "actionability": 1}},
       "post_url": "...", "creator_url": "..."}},
     {{"type": "post_idea", "origin": "researched|pinned", "pinned_input": "...", "headline": "...",
-      "subject": "...", "city": "...",
+      "subject": "...", "city": "...", "posted_days_ago": 0,
       "scores": {{"freshness": 1, "cultural_relevance": 1, "resx_relevance": 1,
                   "source_quality": 1, "actionability": 1}},
       "posts": [{{"post_url": "...", "account_url": "...", "why": "..."}}]}}
@@ -287,7 +294,8 @@ Return ONLY a valid JSON object, no markdown:
   ]
 }}
 Only include the fields relevant to that opportunity's type — omit the rest. Omit "scores" for
-pinned items.
+pinned items. "posted_days_ago" is required for every researched REPOST/POST_IDEA; optional for
+pinned items (Georgia's pinned leads aren't subject to the freshness cutoff).
 """
 
     result = call_anthropic(
@@ -310,6 +318,9 @@ pinned items.
             "Accuracy matters more than coverage: only cite a URL you actually got back from "
             "a web_search result, never one you constructed or recalled from memory, and never "
             "attach a URL to a description it doesn't actually match. When in doubt, drop it. "
+            "The same standard applies to posted_days_ago: report the post's actual age from "
+            "what the search result shows, never guess or default to 0 — if you can't tell how "
+            "old it is, report 999. "
             "Score researched items honestly — inflated scores defeat the point of scoring. "
             "Never silently drop a pinned lead — always report it as included or rejected. "
             "Return only a valid JSON object, no markdown."
@@ -396,6 +407,33 @@ def validate_post_urls(items: list, today_iso: str, source_type: str) -> tuple:
                 })
         else:
             kept.append(item)
+    return kept, skips
+
+
+def validate_freshness(items: list, today_iso: str, source_type: str,
+                        cutoff_days: int = FRESHNESS_CUTOFF_DAYS) -> tuple:
+    """Deterministic backstop on content age. The self-rated 'freshness' score alone isn't
+    enough — it's one of five axes averaged together, so a stale item can still clear
+    SCORE_THRESHOLD if the other four axes are strong. This checks the model-reported
+    posted_days_ago against a hard cutoff, independent of the average. Missing/unparseable
+    values are treated as failing (missing is better than wrong, same as validate_post_urls)."""
+    kept = []
+    skips = []
+    for item in items:
+        days_ago = item.get("posted_days_ago")
+        try:
+            days_ago = int(days_ago)
+        except (TypeError, ValueError):
+            days_ago = None
+        if days_ago is None or days_ago > cutoff_days:
+            skips.append({
+                "date": today_iso, "subject": item.get("subject", ""),
+                "url": (urls_in_item(item) or [""])[0], "reason": "stale_content",
+                "detail": f"posted_days_ago={days_ago!r} exceeds the {cutoff_days}-day freshness cutoff",
+                "source_type": source_type,
+            })
+            continue
+        kept.append(item)
     return kept, skips
 
 
@@ -670,6 +708,10 @@ def main():
             continue
         researched_kept.append(item)
 
+    # Hard gate: reported post age, independent of the self-rated freshness score in
+    # avg_score above — pinned leads are exempt, same as the scoring rubric they already skip.
+    researched_kept, freshness_skips = validate_freshness(researched_kept, today_iso, source_type="researched")
+
     # Hard gate: strict post-level URL validation, regardless of origin — missing is better
     # than wrong. A pinned lead with no valid post link still gets rejected here.
     pinned_kept, pinned_url_skips = validate_post_urls(pinned_kept, today_iso, source_type="pinned")
@@ -688,7 +730,7 @@ def main():
     final_items, diversity_skips = apply_diversity(pinned_kept + researched_kept, today_iso)
 
     new_skip_entries = (
-        pinned_skips + score_skips + pinned_url_skips + researched_url_skips
+        pinned_skips + score_skips + freshness_skips + pinned_url_skips + researched_url_skips
         + considered_rejected_log + diversity_skips
     )
     print(

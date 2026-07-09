@@ -18,7 +18,7 @@ Hand the ResX team a same-day, ready-to-act social content list — not a summar
 
 1. **Freshness / pre-saturation over completeness.** Explicitly instructed to prefer something just starting to take off over something already fully saturated or only known via an old article.
 2. **Source specificity over coverage.** A real, specific Instagram Reel/TikTok link beats a generic article every time; an article is only acceptable if the article itself *is* the story.
-3. **Actionability over interestingness.** Every item must map to one of six concrete action types (see below) — "this is culturally relevant" isn't enough; the team must be able to *do* something with it in under 15 minutes.
+3. **Actionability over interestingness.** Every item must map to one of three concrete buckets (see below) — "this is culturally relevant" isn't enough; the team must be able to *do* something with it in under 15 minutes.
 4. **Brand voice discipline in classification, not in copy.** The "insider, cool girl, lowercase" voice governs how the bot *names* an opportunity (its `headline`/`idea`), not any caption text — the bot no longer writes captions at all (see below).
 
 ## Important architectural decisions and why they were made
@@ -26,8 +26,11 @@ Hand the ResX team a same-day, ready-to-act social content list — not a summar
 ### No generated captions, comments, or hooks — anywhere
 Earlier versions of this bot suggested exact caption copy ("repost with 'your sign to book tonight'"). Direct user feedback reversed this explicitly: *"dont do captions and stuff."* The bot now only classifies the action type and supplies real links; the team always writes their own words. **Do not reintroduce generated copy** — this was a deliberate, explicitly-requested reversal, not an oversight to "fix."
 
-### Six action types instead of a flat "opportunity"
-A `repost` needs exactly one real post; a `carousel` needs 2+ real, distinct, linked posts (one per slide). An earlier flat schema produced vague, unbuildable carousel ideas — the canonical bad example baked into the prompt is `"carousel: 'before the match. after the match. the table in between.' fan village just opened, final july 19"`, which has no real posts behind it at all. The six types (`repost`/`carousel`/`story`/`comment`/`meme`/`inspo`) each have their own required fields, enforced by both the prompt schema and `format_ugc_item`'s per-type rendering dispatch.
+### Three buckets instead of a flat "opportunity" (collapsed from six action types)
+A `repost` needs exactly one real, direct post-level link; a `post_idea` needs 2+ real, distinct, linked posts backing one concrete piece of content; `trending_audio` is song/artist/link only, no explanation. An earlier flat schema produced vague, unbuildable ideas — the canonical bad example baked into the prompt is `"carousel: 'before the match. after the match. the table in between.' fan village just opened, final july 19"`, which has no real posts behind it at all. This started as six action types (`repost`/`carousel`/`story`/`comment`/`meme`/`inspo`), each with its own required fields — that turned out to be more granularity than the editorial judgment needed, so it was collapsed to the current three buckets (`repost`/`post_idea`/`trending_audio`), enforced by both the prompt schema and `format_ugc_item`'s per-type rendering dispatch.
+
+### Hard freshness gate (`validate_freshness`) on top of the self-rated freshness score
+Real incident (2026-07-09): the bot posted a REPOST whose actual Instagram post was ~3 months old, despite the prompt explicitly saying "search the last 24 hours only." Root cause: `freshness` was only one of five axes averaged together for `SCORE_THRESHOLD` — a stale item with freshness=2 still cleared the 3.5 bar if the other four axes averaged 5. The fix mirrors `validate_post_urls`: the model now reports an explicit `posted_days_ago` per researched item (never guessed — a missing/unparseable value fails the same as an over-cutoff one), and `validate_freshness` hard-drops anything over `FRESHNESS_CUTOFF_DAYS` (3), independent of the averaged score. Pinned items are exempt, same as they already are from `SCORE_THRESHOLD` — Georgia's pinned leads aren't second-guessed on freshness any more than they are on relevance.
 
 ### Explicit 1-5 self-scoring + a hard `SCORE_THRESHOLD` gate
 "Quality over quantity" needed to be an *enforced mechanism*, not just a prompt request. The model self-scores every researched item across 5 axes (freshness/cultural_relevance/resx_relevance/source_quality/actionability); `avg_score()` computes the mean, and anything below `SCORE_THRESHOLD` (3.5) is dropped and logged — this is a real code-level gate, not advisory text. Pinned items explicitly bypass it (see below).
@@ -48,11 +51,13 @@ Only a confirmed 404/410 counts as broken; timeouts, blocks, and other errors ar
 - **`resolve_pinned`'s safety net** (the `not_addressed_by_model` fallback, matched via exact `pinned_input` text). This is the actual mechanism that makes "never silently ignored" true.
 - **The link-accuracy instructions in `research_ugc`'s prompt** ("never construct, guess, paraphrase, autocomplete, or recall a URL from memory"). This exists because a real incident occurred: a collab link the bot posted pointed to the wrong post entirely. This language is what prevents a repeat.
 - **`apply_diversity`'s pinned-first ordering.** Reordering this would let organically-discovered content win a subject conflict against something Georgia explicitly pinned.
+- **`FRESHNESS_CUTOFF_DAYS` and the fact that pinned items bypass `validate_freshness`.** Direct response to the 2026-07-09 stale-post incident (see architectural decisions above). Loosening the cutoff or making it apply to pinned leads re-admits the exact failure mode it exists to close.
 
 ## Known limitations
 
 - **No claim-based git-race locking** (see the digest bot's `CLAUDE.md` for what that is and why it exists). This bot's same-day guard is architecturally the *pre-fix* version of that same mechanism — theoretically vulnerable to the identical duplicate-post bug class, just not yet observed/triggered here (probably because a daily cadence hits GitHub's schedule-deprioritization problem less often than the digest bot's 2x/week cadence did).
-- **Pinned-lead resolution is folded into the single big `research_ugc` call**, unlike the digest bot's dedicated `research_pinned_inputs` call. Simpler, but means a pinned lead's fate depends on the same prompt simultaneously juggling six action types, trending audio, tiering, and scoring.
+- **Pinned-lead resolution is folded into the single big `research_ugc` call**, unlike the digest bot's dedicated `research_pinned_inputs` call. Simpler, but means a pinned lead's fate depends on the same prompt simultaneously juggling three content buckets, trending audio, and scoring.
+- **`posted_days_ago` is entirely self-reported by the model**, not independently verified against `web_search`'s own result metadata (which `call_anthropic` currently discards — it only extracts top-level `text` blocks). `validate_freshness` is a real code-level gate, but it's only as honest as what the model reports; a more robust version would parse actual date metadata out of the raw tool_result blocks instead.
 - **No watchdog** for missed scheduled runs.
 - **No automated test suite.**
 
@@ -63,6 +68,7 @@ Only a confirmed 404/410 counts as broken; timeouts, blocks, and other errors ar
 - *"The [collab] link you sent is totally wrong... you need to be more careful with sending links"* → led to the explicit "never construct or recall a URL from memory, verify it matches" language now in the system and user prompts.
 - *"I want a dedicated pinned leads system... pinned inputs should override normal discovery and ranking... if it does not include it, it must explain exactly why"* → led to `social_pinned_leads.json`, `social_skipped_log.json`, `resolve_pinned`, and the score-threshold bypass for pinned items. **This was built here before the equivalent existed in the digest bot** — the digest bot's later pinned-inputs system is a port/refinement of this one.
 - *(From the digest bot, but architecturally relevant here too):* *"I've had to manually trigger the digest almost every time, and sometimes it posts twice."* The root cause (a same-day guard whose write can be lost in a git-push race) is structurally present in this bot too — see Known Limitations.
+- *2026-07-09: "it contained only one link from April 2026. we are in July 2026. this needs to be more fresh."* A researched REPOST cleared `SCORE_THRESHOLD` despite a stale `freshness` sub-score, because the threshold only checks the 5-axis average. Led to `posted_days_ago` (self-reported, never-guess) and the hard `validate_freshness` gate — see architectural decisions above.
 
 ## Prompting philosophy
 
@@ -76,11 +82,11 @@ Only a confirmed 404/410 counts as broken; timeouts, blocks, and other errors ar
 - Brand voice ("insider, cool girl, lowercase, like a friend texting a tip") governs *naming* an opportunity, not writing content for it — the bot classifies and links, the team writes copy.
 - Real and specific always beats broad and safe: a single well-verified Reel beats three vague "trend" mentions.
 - Pinned/manual input is never second-guessed on relevance, only on being broken, a duplicate, or (rarely) genuinely irrelevant to the business.
-- Six action types exist because "post this" is not one instruction — a repost, a carousel, and a comment are different amounts of work with different content requirements, and conflating them produced unbuildable output in the past.
+- Three buckets exist because "post this" is not one instruction — a repost and a post_idea (backed by 2+ real posts) are different amounts of work with different content requirements, and conflating them produced unbuildable output in the past.
 
 ## How to safely make changes
 
-1. **If you change the JSON schema `research_ugc` returns**, update all three of: the prompt's own schema description, `format_ugc_item`'s per-type dispatch (repost/carousel/story/comment/meme/inspo each render differently), and `urls_in_item` (used for dedup extraction across all types) — these must stay in sync or a new field will silently fail to render or dedupe.
+1. **If you change the JSON schema `research_ugc` returns**, update all three of: the prompt's own schema description, `format_ugc_item`'s per-type dispatch (repost/post_idea render differently), and `urls_in_item` (used for dedup extraction across all types) — these must stay in sync or a new field will silently fail to render or dedupe.
 2. **Don't lower `SCORE_THRESHOLD` or remove the pinned-bypass** without discussing — both are direct responses to explicit feedback, not arbitrary tuning.
 3. **If you're improving the pinned-lead mechanism here, check whether the digest bot's `pinned_inputs.json`/`process_pinned_inputs` should get the same improvement** (and vice versa) — they're related but have diverged; see each bot's Known Limitations for where.
 4. **Preserve the "no captions" rule in any prompt rewrite** — it's easy to accidentally reintroduce copy-writing language while adjusting something else nearby (e.g. the `idea`/`headline` field description).
