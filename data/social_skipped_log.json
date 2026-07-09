@@ -42,5 +42,47 @@
     "url": "https://www.socialpilot.co/blog/tiktok-trends",
     "reason": "Trend confirmed real and at 36M+ posts, but named #1 for June 2026 \u2014 likely already past peak saturation entering July. No specific linkable TikTok audio URL retrieved that could be confidently cited.",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-09",
+    "subject": "Brasserie Olivia official opening",
+    "url": "https://lanouvellegarde.com/en/brasserie-olivia/",
+    "reason": "Already featured in the last 7 days \u2014 on the do-not-repeat list",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-09",
+    "subject": "Langosteria London at The OWO",
+    "url": "https://www.instagram.com/langosteria/",
+    "reason": "Profile URL already in the 'already sent' exclusion list; no separate confirmed post-level URL for the London opening retrieved from search",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-09",
+    "subject": "Rockefeller Center World Cup Fan Village dining",
+    "url": "https://www.rockefellercenter.com/events/world-cup-2026",
+    "reason": "Strong real-world opportunity (active today, July 9) but no confirmed Instagram post-level URLs retrieved \u2014 cannot build a valid post_idea without 2+ verified post URLs",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-09",
+    "subject": "Johnny Boy's Stoke Newington opening",
+    "url": "https://www.instagram.com/eatatjohnnyboys/",
+    "reason": "Only the profile URL was confirmed from search results, no specific post-level URL retrieved \u2014 cannot use profile URL as post_url per the rules",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-09",
+    "subject": "Mimi's froyo NYC viral summer",
+    "url": "https://www.instagram.com/mimis.ny/",
+    "reason": "Only profile URL confirmed; no specific post-level URL retrieved from search results \u2014 cannot meet post_url requirement",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-09",
+    "subject": "NYC heatwave rooftop dining angle",
+    "url": "https://gothamist.com/news/nycs-scorching-heat-wave-continues-with-triple-digit-heat-index-values",
+    "reason": "Heatwave peaked July 2-5 and is now several days old; does not feel fresh today (July 9) and no specific viral posts from today found to back it",
+    "source_type": "researched"
   }
 ]
