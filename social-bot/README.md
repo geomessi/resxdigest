@@ -8,33 +8,33 @@
 
 Posts a daily list of specific, real, immediately-postable social content to `#social` so the ResX team can repost it — Instagram Reels, TikToks, carousel ideas backed by real linked posts, and trending audio. It is explicitly **not** a "what's happening" summary: it's a to-do list. Every item tells the team exactly what to do (repost, build a carousel, comment on something) with a real link already in hand, and the team writes their own captions — the bot never generates copy.
 
-Quality over quantity is a structural requirement here, not just a preference: it's completely normal, expected behavior for the bot to post 2 items on one day and 6 on another, or occasionally none.
+**The bot is never empty** (post-2026-07-11 overhaul — see `CLAUDE.md`): there's always something worth posting, so it surfaces the best ~3–5 each day. Scoring *ranks* candidates; it does not gate the list down to zero. It won't pad with junk, but "nothing today" is treated as a failure, not a quiet day.
 
 ## How it works end-to-end
 
 `social_bot.py`'s `main()` runs this pipeline:
 
 1. **Same-day guard** — checks `data/last_social_post.json`; skips (unless `FORCE_POST=1` or `DRY_RUN=1`) if already posted today. Unlike the digest bot, this is a simple check-then-act guard with no atomic claim/race protection (see Known Limitations in `CLAUDE.md`).
-2. **Load state**: `seen_ugc.json` (7-day dedup window: urls/subjects/songs), `social_pinned_leads.json`, `social_skipped_log.json`.
-3. **`research_ugc()`** — one large Claude+web_search call that carries the *entire* editorial judgment in a single prompt: tier-prioritized discovery (celebrity sightings and viral restaurant moments first, FOMO second, lifestyle moments rare), source-quality rules (real Reels/TikTok/accounts over generic articles), pinned-lead resolution, three-bucket classification (repost/post_idea/trending_audio), self-reported `posted_days_ago`, and honest 1-5 self-scoring across 5 axes. Returns opportunities, audio, `pinned_rejected`, and `considered_and_rejected`.
-4. **`resolve_pinned()`** — cross-references the model's response against `social_pinned_leads.json` so every pinned lead ends up either kept (tagged `origin: "pinned"`) or logged as skipped, with a deterministic broken-link (`check_broken`) and duplicate (against `seen_urls`/`seen_subjects`) backstop, plus a safety net for anything the model didn't address at all.
-5. **Score-threshold gate** — every *non-pinned* opportunity's average score (`avg_score`, across freshness/cultural_relevance/resx_relevance/source_quality/actionability) must clear `SCORE_THRESHOLD` (3.5) or it's dropped and logged. Pinned items skip this gate entirely.
-6. **`validate_freshness()`** — hard gate on the model-reported `posted_days_ago`; anything over `FRESHNESS_CUTOFF_DAYS` (3), or missing/unparseable, is dropped and logged regardless of its averaged score. Non-pinned only, added 2026-07-09 after a ~3-month-old post cleared the score-threshold gate on the strength of its other four axes.
-7. **`validate_post_urls()`** — deterministic backstop requiring a direct post-level link (never a profile/website/article); applies to both pinned and researched items.
-8. **`apply_diversity()`** — caps the digest at one item per `subject` (venue/topic/creator/song), pinned items processed first so they win any conflict.
-9. **`dedupe_audio()`** — collapses duplicate song+artist within the same run.
-10. **`build_slack_blocks()`** — a flat, most-compelling-first list (no city or type grouping), each item tagged inline with its action type (`→ REPOST · NYC`), plus a "Trending Audio" section at the bottom. Adds a forced-rerun banner if `FORCE_POST=1` overrode an already-completed day.
-11. **`post_to_slack()`** — skipped entirely under `DRY_RUN=1`, which instead prints the exact payload.
-12. **Persist state** — `seen_ugc.json`, `last_social_post.json`, `social_pinned_leads.json` (cleared), `social_skipped_log.json` — all skipped under `DRY_RUN=1`.
+2. **Load state**: `seen_ugc.json` (permanent dedup: exact URLs / moments / songs), `social_pinned_leads.json`, `social_skipped_log.json`, and `social_tracked_restaurants.json` (the always-check watchlist, both cities).
+3. **`research_ugc()`** — one large Claude call with **`web_search` + `web_fetch`** (the article-link-mining engine) carrying the *entire* editorial judgment: the taste rubric (momentum / stop-scroll / desire-fit / timeliness / source-quality), a wide cultural aperture including standalone pop-culture, the tracked-restaurant watchlist, three-bucket classification (repost / post_idea / trending_audio), the link fallback ladder, and 1-5 self-scoring across the taste axes. The workflow is: search fresh (last-24h) coverage → `web_fetch` the article → mine the embedded Instagram/TikTok permalink. `call_anthropic` loops on `stop_reason == "pause_turn"` so multi-step search→fetch chains finish instead of truncating. Returns opportunities, audio, `pinned_rejected`, `considered_and_rejected`.
+4. **`resolve_pinned()`** — cross-references pinned leads so every one ends up kept (`origin: "pinned"`) or logged, with a broken-link (`check_broken`) and duplicate (against `seen_urls` / `seen_moments`) backstop plus a safety net for anything the model didn't address.
+5. **`tier_and_label()`** — the link fallback ladder: a real permalink → tier `post`; else a specific editorial article + the account → tier `lead` (team grabs the post); only truly linkless moments are dropped. Applies to both pinned and researched items — this replaced the old drop-if-no-permalink gate that was producing empty digests.
+6. **Rank & take top-N** — researched items are sorted by `avg_score` (the taste axes; scoring drives *rank order* only, not an absolute cutoff) and the best `DAILY_TARGET_N` (~5) are kept. Pinned items are always kept. Never zero.
+7. **`apply_diversity()`** — one item per `subject` per digest, pinned processed first so they win any conflict.
+8. **`dedupe_audio()` + cross-run song dedup** — collapse duplicate song+artist within the run, and drop any song already featured before.
+9. **`build_slack_blocks()`** — a flat, most-compelling-first list, each item tagged inline (`→ REPOST · NYC`, or `→ POST IDEA · LDN · LEAD`), with a "Trending Audio" section at the bottom and a forced-rerun banner under `FORCE_POST=1`. If the list is somehow empty it renders a loud ⚠️ warning, never a calm "nothing today."
+10. **`post_to_slack()`** — skipped entirely under `DRY_RUN=1`, which instead prints the exact payload.
+11. **Persist state** — `seen_ugc.json` (permanent retention: exact post/article URLs + `moment` + songs), `last_social_post.json`, `social_pinned_leads.json` (cleared), `social_skipped_log.json` — all skipped under `DRY_RUN=1`.
 
 ## Folder structure
 
 ```
 social_bot.py                        # the entire bot — one file, no other modules
 data/
-  seen_ugc.json                       # 7-day dedup window (urls/subjects/songs) / 14-day retention
+  seen_ugc.json                       # permanent dedup (exact urls / moments / songs)
   last_social_post.json               # simple same-day guard (date + posted_at)
   social_pinned_leads.json            # manually-submitted leads queue (cleared each run)
+  social_tracked_restaurants.json     # always-check watchlist, both cities ({name, city, handle?})
   social_skipped_log.json             # 30-day log of why a pinned lead / candidate wasn't included
 .github/workflows/
   social_bot.yml                       # scheduled/manual trigger — also does its own git commit step in shell

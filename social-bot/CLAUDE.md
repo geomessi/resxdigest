@@ -6,11 +6,27 @@ This is the operating manual for `social_bot.py`. Read this before making *any* 
 
 Hand the ResX team a same-day, ready-to-act social content list — not a summary of what's happening, a to-do list of specific real posts to repost, remix into a carousel, or comment on. Every item must be something the team could act on in under 15 minutes, with a real link already attached.
 
+## 2026-07-11 overhaul — read this first
+
+A major reframe landed on 2026-07-11 (Georgia, direct feedback). The bot is now **a social media editor with taste**, judged by whether opening `#social` makes you think *"I hadn't seen that yet"* / *"we should absolutely post that today."* The core changes — several of which deliberately reversed prior "never change" rules — are:
+
+- **NEVER empty.** There is always something to post. The old "empty is fine / quality over quantity means 0 is OK" philosophy and the absolute `SCORE_THRESHOLD` cutoff are **gone**. Scoring now only *ranks*; the bot returns the best ~3–5 every day (`DAILY_TARGET_N`). An empty digest is a loud failure, not a quiet day.
+- **Article-link-mining is the engine.** Plain `web_search` can't retrieve Instagram/TikTok permalinks, but fresh articles *embed* them. `call_anthropic` now runs `web_search` + `web_fetch` (the `_20260209` pair) with a `pause_turn` continuation loop, and the prompt tells the model to search fresh coverage → fetch the article → mine the embedded permalink.
+- **Link fallback ladder** (`tier_and_label`) replaces the hard permalink gate: real permalink → else an editorial article + the account (a labeled *"lead"*, team grabs the post) → only truly linkless moments are dropped.
+- **Wider cultural aperture:** standalone pop-culture is welcome even with no restaurant tie (a premiere, a show, a city moment). Trending audio is first-class.
+- **Permanent dedup** (`SEEN_RETENTION_DAYS` ≈ forever): the exact post URL and song never repeat; a venue can return only for a genuinely new `moment` (dedup keys on the moment, not the venue name; accounts are never blocked).
+- **Tracked-restaurant watchlist** (`data/social_tracked_restaurants.json`): Georgia's key spots in both cities, checked every run.
+- **Freshness** is now enforced via the prompt + ranking (`timeliness` axis) + article datelines, not the brittle self-reported `posted_days_ago` gate (`validate_freshness` is **removed**).
+
+**Deferred (the real next bet):** a paid IG/TikTok data source (Apify / EnsembleData, ~$0–50/mo) is the only way to reliably get permalinks + true timestamps for pure-organic virality that has *no article yet*. Georgia chose to hold off; article-mining is the zero-cost stopgap. Revisit when the current fix isn't enough.
+
+Everything below predates the overhaul; where it conflicts, this section wins.
+
 ## What success looks like
 
 - Zero generated captions, comments, or hooks anywhere in the output — the team always writes their own words.
 - Every link is either verified live, or (for pinned links specifically) at least not a *confirmed* dead link.
-- It's normal and correct for the digest to be short (2-3 items) or empty some days — a padded list of mediocre content is treated as a worse outcome than an honest empty one.
+- **The digest is never empty** (post-2026-07-11). There is always something worth posting; an empty result is a failure to investigate, not a quiet day. Aim for the best ~3–5 opportunities daily — don't pad with junk, but real of-the-moment content always exists.
 - The same restaurant, trend, or song never resurfaces within a week without a genuinely new angle.
 - A manually pinned lead always appears in the output or is explained in `social_skipped_log.json` — never silently dropped.
 
@@ -47,11 +63,13 @@ Only a confirmed 404/410 counts as broken; timeouts, blocks, and other errors ar
 ## Things that should never be changed without careful consideration
 
 - **The "no captions/comments/hooks" rule.** Explicitly, directly requested by the user as a reversal of prior behavior. Re-adding generated copy repeats a corrected mistake.
-- **`SCORE_THRESHOLD`'s value and the fact that pinned items bypass it.** Lowering the threshold re-admits weak content; removing the pinned bypass breaks the "pinned input must never be ignored" guarantee.
+- **The "never empty" law.** The bot returns the best ~3–5 every day and treats empty as a failure. Do NOT reintroduce "empty is fine / 0 is OK" or restore an absolute score cutoff — that was the exact 2026-07 failure the overhaul fixed. Scoring now only ranks (`avg_score` → sort → `DAILY_TARGET_N`).
+- **The link fallback ladder (`tier_and_label`), not a hard permalink gate.** A great moment with no permalink ships as a labeled "lead" (editorial article + account), never dropped. Restoring the old "drop anything without a post-level URL" gate — combined with web_search's blindness to Instagram — is precisely what produced empty output.
+- **The article-mining workflow + `pause_turn` loop in `call_anthropic`.** `web_fetch` is how the bot gets real permalinks (from article embeds); the `pause_turn` loop stops multi-step search→fetch chains from silently truncating. Removing either guts the core mechanism.
+- **Permanent dedup, keyed on the exact post/song + the `moment`.** "Never repeat anything" is a hard requirement. A venue returns only for a genuinely new `moment`; never permanently block a venue name (it would retire the watchlist) and never block an account URL (accounts recur) — see `dedup_urls_in_item`.
 - **`resolve_pinned`'s safety net** (the `not_addressed_by_model` fallback, matched via exact `pinned_input` text). This is the actual mechanism that makes "never silently ignored" true.
-- **The link-accuracy instructions in `research_ugc`'s prompt** ("never construct, guess, paraphrase, autocomplete, or recall a URL from memory"). This exists because a real incident occurred: a collab link the bot posted pointed to the wrong post entirely. This language is what prevents a repeat.
+- **The link-accuracy instructions in `research_ugc`'s prompt** ("never construct, guess, autocomplete, or recall a URL from memory"). A real wrong-link incident motivated this; the language prevents a repeat.
 - **`apply_diversity`'s pinned-first ordering.** Reordering this would let organically-discovered content win a subject conflict against something Georgia explicitly pinned.
-- **`FRESHNESS_CUTOFF_DAYS` and the fact that pinned items bypass `validate_freshness`.** Direct response to the 2026-07-09 stale-post incident (see architectural decisions above). Loosening the cutoff or making it apply to pinned leads re-admits the exact failure mode it exists to close.
 
 ## Known limitations
 
