@@ -40,16 +40,6 @@
     "cover_image_post": ""
   },
   {
-    "name": "Saison",
-    "date": "opens early July 2026",
-    "blurb": "Sammy Rees's Bed-Stuy corner shop pairs vintage finds with baked goods and coffee \u2014 she's been posting construction progress ahead of a birth-month soft open.",
-    "city": "NYC",
-    "website": "https://www.bysaison.co",
-    "instagram_handle": "@bysaison",
-    "instagram_url": "https://www.instagram.com/bysaison/",
-    "cover_image_post": ""
-  },
-  {
     "name": "Monday Diner",
     "date": "opens late summer/fall 2026",
     "blurb": "James Beard finalist Caroline Schiff opens a proper, no-frills classic Brooklyn diner.",
@@ -103,5 +93,22 @@
     "instagram_url": "",
     "cover_image_post": "",
     "source_url": "https://thenudge.com/hons-bbq/"
+  },
+  {
+    "name": "HUMM",
+    "date": "opens fall 2026",
+    "blurb": "Daniel Humm's 200-seat wood-fired West Village restaurant \u2014 EMP meets neighborhood brasserie.",
+    "so_what": "Humm's name guarantees instant reservation frenzy \u2014 last-minute goldmine.",
+    "city": "NYC",
+    "website": "https://www.hummnyc.com",
+    "instagram_handle": "@hummrestaurant",
+    "instagram_url": "https://www.instagram.com/hummrestaurant/",
+    "cover_image_post": "",
+    "source_url": "https://culinaryagents.com/entities/1074202-HUMM",
+    "category": "watching",
+    "importance_rank": 0,
+    "merged_from": [
+      "humm::NYC"
+    ]
   }
 ]
