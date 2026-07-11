@@ -76,11 +76,13 @@ def save_json(path: Path, data):
 # _20260209 dynamic-filtering variants, supported on claude-sonnet-4-6. max_content_tokens
 # caps how much of each fetched article is pulled in, to bound cost.
 # max_uses caps keep the whole search→fetch chain under the server tool loop's ~10-iteration
-# limit, so the model finishes in ONE streamed response (no pause_turn) — plenty for mining a
-# handful of articles for 3-5 opportunities. Raise later if we want deeper coverage.
+# limit, so the model finishes in ONE streamed response (no pause_turn) — enough to mine a few
+# articles for 3-5 opportunities. NOTE: the _20260209 variants run dynamic-filtering code
+# execution under the hood, so each web_fetch costs ~2 server iterations; budget accordingly
+# (2 searches + 3 fetches ≈ 8 iterations < 10). Raising these needs pause_turn resumption first.
 TOOLS = [
-    {"type": "web_search_20260209", "name": "web_search", "max_uses": 4},
-    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5, "max_content_tokens": 6000},
+    {"type": "web_search_20260209", "name": "web_search", "max_uses": 2},
+    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3, "max_content_tokens": 6000},
 ]
 
 # We MUST stream. A non-streaming request that runs long server-tool loops sits idle (no bytes)
