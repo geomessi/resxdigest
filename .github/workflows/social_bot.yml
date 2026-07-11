@@ -18,6 +18,9 @@ on:
 jobs:
   run-social-bot:
     runs-on: ubuntu-latest
+    # Hard backstop: the research call is bounded in-code (REQUEST_TIMEOUT / OVERALL_BUDGET),
+    # but cap the whole job too so a hung run can never burn the 6h default again.
+    timeout-minutes: 25
 
     permissions:
       contents: write

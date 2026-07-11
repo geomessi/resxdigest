@@ -20,6 +20,7 @@ return only for a genuinely new "moment". Both cities' key restaurants are track
 import os
 import json
 import re
+import time
 import urllib.request
 import datetime
 from pathlib import Path
@@ -80,16 +81,26 @@ TOOLS = [
     {"type": "web_fetch_20260209", "name": "web_fetch", "max_content_tokens": 6000},
 ]
 
+# Timeouts matter a lot here: a request now runs server-side web_search + web_fetch loops, so
+# a stalled connection with NO socket timeout hangs forever (a real 6h GitHub job burn on
+# 2026-07-11). REQUEST_TIMEOUT bounds each HTTP call; OVERALL_BUDGET bounds the whole pause_turn
+# chain. On timeout we fail gracefully (return "" → research yields empty → loud warning), never
+# hang. The workflow also sets a job-level timeout-minutes as a hard backstop.
+REQUEST_TIMEOUT = 420   # seconds per HTTP request
+OVERALL_BUDGET = 900    # seconds total across pause_turn continuations
+
 
 def call_anthropic(messages: list, system: str, max_tokens: int = 3000,
-                   max_continuations: int = 6) -> str:
+                   max_continuations: int = 4) -> str:
     """One logical Claude turn that may run many server-tool rounds (search → fetch → …).
     The server tool loop caps at ~10 iterations per response and returns
     stop_reason == 'pause_turn' when it hits that cap; we echo the assistant turn back and
     re-request to resume, so a multi-step search→fetch→mine chain isn't silently truncated.
-    Returns the text of the final (non-paused) response — that's where the JSON answer lands."""
+    Returns the text of the final (non-paused) response — that's where the JSON answer lands.
+    A timeout/network failure returns whatever text we have (usually "") rather than hanging."""
     convo = list(messages)
     data = {}
+    started = time.monotonic()
     for _ in range(max_continuations + 1):
         payload = json.dumps({
             "model": "claude-sonnet-4-6",
@@ -109,10 +120,17 @@ def call_anthropic(messages: list, system: str, max_tokens: int = 3000,
             },
             method="POST",
         )
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+                data = json.loads(resp.read())
+        except Exception as e:  # timeout, connection reset, HTTP error, bad JSON — fail gracefully
+            print(f"Anthropic request failed ({type(e).__name__}: {e}); stopping this turn.")
+            break
 
         if data.get("stop_reason") != "pause_turn":
+            break
+        if time.monotonic() - started > OVERALL_BUDGET:
+            print("Hit overall research time budget; stopping pause_turn continuation.")
             break
 
         # Resume: echo the paused assistant turn (incl. its server tool_use/result blocks)
