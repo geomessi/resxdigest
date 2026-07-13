@@ -76,9 +76,16 @@ def save_json(path: Path, data):
 # web_search can't retrieve post-level links, but articles embed them). Both are the
 # _20260209 dynamic-filtering variants, supported on claude-sonnet-4-6. max_content_tokens
 # caps how much of each fetched article is pulled in, to bound cost.
+# Use the BASIC web tool variants, NOT the _20260209 "dynamic filtering" ones. The _20260209
+# variants run code execution under the hood, which (a) burns the server tool-loop iteration
+# budget so the turn always pauses before writing the JSON, and (b) makes resuming a pause
+# require a code-execution container_id (400 "container_id is required..."). The basic variants
+# do neither: each tool use is one plain iteration, no container, so the whole search→fetch→mine
+# chain completes in a single streamed response with no pause_turn to resume. web_fetch is beta.
+ANTHROPIC_BETA = "web-fetch-2025-09-10"
 TOOLS = [
-    {"type": "web_search_20260209", "name": "web_search", "max_uses": 4},
-    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5, "max_content_tokens": 6000},
+    {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
+    {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 4, "max_content_tokens": 6000},
 ]
 
 # Two hard-won facts drive this design (both observed 2026-07-11):
@@ -112,6 +119,7 @@ def _stream_once(convo: list, system: str, max_tokens: int) -> tuple:
             "Content-Type": "application/json",
             "x-api-key": ANTHROPIC_API_KEY,
             "anthropic-version": "2023-06-01",
+            "anthropic-beta": ANTHROPIC_BETA,
         },
         method="POST",
     )
