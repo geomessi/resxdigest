@@ -6,6 +6,17 @@ This is the operating manual for `bot.py`. Read this before making *any* change 
 
 Give the ResX team an **executive briefing**, not a news summary, on the restaurant/hospitality industry, twice a week. Every story exists to answer one question: *why should the ResX team care?* If a story is merely interesting but wouldn't change what the team would actually discuss internally that week, it doesn't belong — even if it's true and well-written.
 
+## 2026-07-13 update — read this first
+
+Direct feedback (Georgia) on wrong opening links + slop drove these changes:
+
+- **UGC covers & Instagram links are now correct-or-omit, enforced deterministically.** `cover_image_post` and `instagram_url` are URLs the LLM returns, rendered as Slack links that Slack unfurls into the preview image — so a wrong-but-live URL showed the wrong restaurant, and `verify_url`'s bare HTTP-200 check couldn't catch it (nor Instagram's soft-404s, nor a video). New: `is_photo_post_url` (a cover must be `instagram.com/p/…`, a **photo**, never `/reel/` `/tv/` video, never a profile) and `sanitize_opening_links` (clears any cover that isn't a live photo-post; IG profile links use lenient `check_broken`, not strict `verify_url`, which 403-clears live IG *and* 200-passes dead handles; website/source_url keep strict `verify_url`). Applied at ingestion in `research_openings` **and** as a final pass on every `new_opening`/`watching` item after `edit_and_rank`. The prompt now says: only include a cover you've **web_fetch-confirmed** shows THIS restaurant's food, else omit — a missing cover is fine, a wrong one is unacceptable. Correctness ("right restaurant") can't be HTTP-verified, so it's prompt + omit-when-unsure; the deterministic layer guarantees no video/profile/dead cover ever renders.
+- **`web_fetch` added** to `call_anthropic` (basic `web_search_20250305` + `web_fetch_20250910`, `anthropic-beta: web-fetch-2025-09-10`) so the model can open a source to confirm a link belongs to a restaurant. Basic variants deliberately (the `_20260209` "dynamic filtering" ones run code execution → pause_turn/container pain — learned in `social_bot.py`). Also added a socket timeout + graceful `""` return so a hung call degrades one section to empty instead of hanging the run (the digest previously had no timeout).
+- **Categorization backstop `looks_not_yet_open`** reclassifies a `just_opened` item whose date/blurb says "coming soon"/"opens [future]" into Watching (a coming-soon place had rendered as a New Opening). The prompt's "JUST OPENED" bar is also tightened to *verifiably open NOW*.
+- **The displayed `so_what` "→ why care" line was CUT** from openings, Industry, and City & Culture (per direct feedback — it produced AI-slop like *"exactly the collab-of-the-month energy the audience is already discussing"*). `format_opening_item`/`format_news_items` no longer render it; `blurb`/`detail` are tightened to factual-no-hype. **This reverses the earlier decision that added `so_what`** (see feedback history) — but only the *displayed editorializing line* is gone; `edit_and_rank`'s executive-relevance *selection filter* (what to include) stays, and **AI & Product keeps its functional `why_it_matters`** ("does it lower costs / worth testing"), which is not slop.
+
+Where the sections below conflict with this, this note wins.
+
 ## What success looks like
 
 - Nobody on the team ever says "wait... how did we miss that?" (a real, repeatedly-stated bar from the user).

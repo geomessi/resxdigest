@@ -156,13 +156,26 @@ def save_json(path: Path, data):
     path.write_text(json.dumps(data, indent=2))
 
 
+# Basic web tools. web_search finds sources; web_fetch lets the model OPEN a source to confirm a
+# UGC/Instagram link genuinely belongs to a specific restaurant (correctness, not just liveness).
+# Deliberately the BASIC variants, not the _20260209 "dynamic filtering" ones — those run code
+# execution under the hood, which burns the server tool-loop budget (pause_turn) and needs a
+# container to resume (learned the hard way in social_bot.py). web_fetch is beta.
+ANTHROPIC_BETA = "web-fetch-2025-09-10"
+TOOLS = [
+    {"type": "web_search_20250305", "name": "web_search"},
+    {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 3, "max_content_tokens": 6000},
+]
+REQUEST_TIMEOUT = 300  # socket timeout — a hung request must fail gracefully, never hang the run
+
+
 def call_anthropic(messages: list, system: str, max_tokens: int = 4096) -> str:
     payload = json.dumps({
         "model": "claude-sonnet-4-6",
         "max_tokens": max_tokens,
         "system": system,
         "messages": messages,
-        "tools": [{"type": "web_search_20250305", "name": "web_search"}],
+        "tools": TOOLS,
     }).encode()
 
     req = urllib.request.Request(
@@ -172,11 +185,18 @@ def call_anthropic(messages: list, system: str, max_tokens: int = 4096) -> str:
             "Content-Type": "application/json",
             "x-api-key": ANTHROPIC_API_KEY,
             "anthropic-version": "2023-06-01",
+            "anthropic-beta": ANTHROPIC_BETA,
         },
         method="POST",
     )
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            data = json.loads(resp.read())
+    except Exception as e:
+        # Timeout / connection drop / HTTP error / bad JSON: return "" so the caller degrades to
+        # an empty section (its existing parse-failure path) instead of hanging or crashing.
+        print(f"Anthropic request failed ({type(e).__name__}: {e}); returning empty for this call.")
+        return ""
 
     return "".join(
         block.get("text", "")
@@ -232,6 +252,65 @@ def check_broken(url: str, timeout: int = 5) -> bool:
         return e.code in (404, 410)
     except Exception:
         return False
+
+
+# A UGC cover must be an Instagram PHOTO post — never a video (reel/tv), a profile, an editorial
+# page, or a website. Slack unfurls whatever URL we attach, so the URL shape decides whether the
+# reader sees a food photo or a video/nothing. This is a deterministic shape check; correctness
+# ("belongs to THIS restaurant") can't be verified over HTTP, so the prompt + omit-when-unsure
+# handle that separately.
+_PHOTO_POST_RE = re.compile(r"^https?://(www\.)?instagram\.com/p/[\w-]+", re.I)
+_IG_PROFILE_RE = re.compile(r"^https?://(www\.)?instagram\.com/[\w.]+/?(\?|$)", re.I)
+_NOT_YET_OPEN_RE = re.compile(
+    r"\b(coming soon|opens?\b|opening|to open|will open|set to|slated|later this|"
+    r"next month|this fall|this autumn|this winter|this spring|this summer|"
+    r"early \d{4}|late \d{4}|202[6-9])\b", re.I
+)
+
+
+def is_photo_post_url(url: str) -> bool:
+    """True only for a real Instagram photo post (instagram.com/p/<id>). False for /reel/ or /tv/
+    (video), a profile, TikTok, an editorial page, or a website."""
+    return bool(url) and bool(_PHOTO_POST_RE.match(url.strip()))
+
+
+def is_ig_profile_url(url: str) -> bool:
+    """True for an instagram.com/<handle> profile URL (not a post/reel)."""
+    if not url or not _IG_PROFILE_RE.match(url.strip()):
+        return False
+    # Exclude post/reel/tv paths which also start with instagram.com/
+    return not re.match(r"^https?://(www\.)?instagram\.com/(p|reel|tv|explore)/", url.strip(), re.I)
+
+
+def sanitize_opening_links(item: dict) -> dict:
+    """Deterministically enforce the link rules on an opening/culture item, in place:
+      - cover_image_post: must be an Instagram PHOTO post AND not a confirmed dead link, else clear
+        it (kills the video/profile/broken-cover bugs). Instagram liveness uses the lenient
+        check_broken (strict verify_url both 403-clears live IG content and 200-passes soft-404s).
+      - instagram_url/handle: must be a real profile URL and not a confirmed dead link, else clear.
+      - website/source_url: keep the strict verify_url (not Instagram, so the 200 check is valid).
+    Correctness ("is this the right restaurant") is the model's job via the prompt + omit-when-unsure;
+    this layer guarantees we never SHOW a video, a profile-as-cover, or a hard-dead link."""
+    cover = (item.get("cover_image_post") or "").strip()
+    if cover and not (is_photo_post_url(cover) and not check_broken(cover)):
+        item["cover_image_post"] = ""
+
+    ig_url = (item.get("instagram_url") or "").strip()
+    if ig_url and not (is_ig_profile_url(ig_url) and not check_broken(ig_url)):
+        item["instagram_url"] = ""
+        item["instagram_handle"] = ""
+
+    for key in ("website", "source_url"):
+        if item.get(key) and not verify_url(item[key]):
+            item[key] = ""
+    return item
+
+
+def looks_not_yet_open(item: dict) -> bool:
+    """Deterministic backstop for the 'a coming-soon place showed up as a New Opening' bug: if the
+    item's date/blurb clearly signals it isn't open yet, it belongs in Watching, not Just Opened."""
+    text = f"{item.get('date', '')} {item.get('blurb', '')}".strip()
+    return bool(_NOT_YET_OPEN_RE.search(text))
 
 
 # ---------------------------------------------------------------------------
@@ -501,7 +580,10 @@ If any of these have now opened, include them in JUST OPENED.
 
 Return TWO lists:
 
-1. JUST OPENED: Up to 3 restaurants that actually opened THIS WEEK (verifiably open, taking reservations or walk-ins).
+1. JUST OPENED: Up to 3 restaurants VERIFIABLY OPEN NOW — backed by concrete evidence it's actually
+   operating this week (diners posting from inside, a published review, or confirmed taking
+   reservations/walk-ins TODAY). An announcement, a teaser, or a future "opens [date]" is NOT open —
+   those go in COMING SOON. When in doubt, it's COMING SOON.
    EXCLUDE already seen: {seen_str}
    Also exclude these restaurants which are tracked separately on the watching list — do NOT independently discover them as new openings. They will only appear if you are graduating them from the watching list above: {watching_str}
 
@@ -511,14 +593,24 @@ Return TWO lists:
 For each restaurant in BOTH lists return:
 - name: restaurant name
 - date: opening date (e.g. "June 18") or "opens [date]" for coming soon
-- blurb: 1 punchy sentence, max 12 words — vibe, concept, what makes it notable
-- so_what: why should the ResX team care — strategic, competitive, or audience-fit signal,
-  max 12 words (e.g. "impossible reservation, exactly our last-minute booking audience")
+- blurb: 1 sentence, max 12 words — factual: what it is, the concept, the notable dish/format.
+  State facts, not hype. No filler ("everyone's talking about", "the it-spot", "buzzy energy").
 - city: "{city_key}"
-- website: search for the official website — try "[name].com", "[name].co.uk", and "site:[name] official". Only include if the URL resolves. Leave blank if nothing confirmed.
-- instagram_handle: official Instagram handle e.g. @restaurantname — search for it, required
-- instagram_url: full official Instagram profile URL — required, search for it (e.g. https://www.instagram.com/restaurantname)
-- cover_image_post: Required for every item. Must be a post showing the FOOD at THIS specific restaurant — from a food blogger, food creator, or regular diner only. NOT the restaurant's own account, and NOT from editorial outlets like Eater, The Infatuation, Time Out, or Hot Dinners. Best sources: the restaurant's tagged photos on Instagram, or the restaurant's geotag. Must show actual food/dishes — not exteriors, not graphic cards. Each restaurant must have a DISTINCT cover URL — never reuse the same URL across two restaurants. Only include if you've confirmed the URL resolves.
+- website: the official website — try "[name].com", "[name].co.uk", "site:[name] official". Only if the URL resolves; blank otherwise.
+- instagram_handle / instagram_url: the restaurant's OWN Instagram profile. Only include a handle/URL
+  you actually FOUND in a search result or a page you fetched — never spell one out from the name or
+  guess the spelling. If you can't confirm the exact real profile, leave BOTH blank. A wrong or dead
+  IG link is worse than none.
+- cover_image_post: OPTIONAL — include ONLY if you can fully confirm it, otherwise OMIT it. It must be
+  an Instagram PHOTO post (instagram.com/p/…) — NEVER a video/reel — showing the FOOD at THIS exact
+  restaurant, from a diner or food creator (NOT the restaurant's own account, NOT editorial like
+  Eater / The Infatuation / Time Out / Hot Dinners). To confirm it's really this restaurant,
+  web_fetch the post or article and check the caption/venue tag before using it. Never guess or
+  construct the URL; never reuse a URL across restaurants.
+  ❌ wrong: attaching a @bysaison food post as the cover for Bark BBQ because it looked close.
+  ✅ right: a diner's instagram.com/p/… clearly tagged at / captioned about Bark BBQ.
+  If you cannot confirm ALL of the above, OMIT cover_image_post — a missing cover is fine; a wrong
+  one (wrong restaurant, or a video) is unacceptable.
 
 For COMING SOON items also return:
 - source_url: URL to the article or announcement that confirms this opening and its date — required. Only include if you've confirmed it resolves.
@@ -528,14 +620,14 @@ Return ONLY valid JSON:
   "just_opened": {{
     "items": [
       {{
-        "name": "...", "date": "...", "blurb": "...", "so_what": "...", "city": "...",
+        "name": "...", "date": "...", "blurb": "...", "city": "...",
         "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "..."
       }}
     ]
   }},
   "coming_soon": [
     {{
-      "name": "...", "date": "...", "blurb": "...", "so_what": "...", "city": "...",
+      "name": "...", "date": "...", "blurb": "...", "city": "...",
       "website": "...", "instagram_handle": "...", "instagram_url": "...", "cover_image_post": "...", "source_url": "..."
     }}
   ]
@@ -555,16 +647,17 @@ Return ONLY valid JSON:
         data, _ = json.JSONDecoder().raw_decode(clean, start)
         just_opened_items = data.get("just_opened", {}).get("items", [])
         coming_soon_items = data.get("coming_soon", [])
+        # Deterministic link hygiene: photo-only covers, lenient IG liveness, strict website/source.
         for item in just_opened_items + coming_soon_items:
-            if item.get("website") and not verify_url(item["website"]):
-                item["website"] = ""
-            if item.get("instagram_url") and not verify_url(item["instagram_url"]):
-                item["instagram_url"] = ""
-                item["instagram_handle"] = ""
-            if item.get("cover_image_post") and not verify_url(item["cover_image_post"]):
-                item["cover_image_post"] = ""
-            if item.get("source_url") and not verify_url(item["source_url"]):
-                item["source_url"] = ""
+            sanitize_opening_links(item)
+
+        # A "just opened" that clearly isn't open yet belongs in Watching, not New Openings.
+        still_open, reclassified = [], []
+        for item in just_opened_items:
+            (reclassified if looks_not_yet_open(item) else still_open).append(item)
+        just_opened_items = still_open
+        coming_soon_items = reclassified + coming_soon_items
+
         for item in just_opened_items:
             item["category"] = "new_opening"
             item["id"] = normalize_identity(item.get("name", ""), item.get("city", ""))
@@ -729,8 +822,7 @@ generic "no news" filler.
 
 {_city_label_instruction()}
 For each return: headline (max 8 words, name the competitor), detail (max 15 words — the
-specific development), so_what (max 12 words — why this matters for ResX's competitive
-position), url (direct link if available), city.
+specific development, factual, no hype), url (direct link if available), city.
 """
     items = _run_news_research(prompt, "competitor_watch", None, seen_stories, holiday_hint)
     for item in items:
@@ -758,8 +850,8 @@ Look for:
   belongs in City & Culture)
 
 Find 2-4 most relevant items. {_city_label_instruction()}
-For each return: headline (max 8 words), detail (max 12 words), so_what (max 12 words — why
-the ResX team should care, factual and direct, no hype), url (direct article link if available),
+For each return: headline (max 8 words), detail (max 12 words — factual, what happened, no hype),
+url (direct article link if available),
 city.
 """
     return _run_news_research(prompt, "industry", exclude, seen_stories, holiday_hint)
@@ -814,8 +906,8 @@ Osteria Vibrato carry Tide Pens in their pockets." Real facts and named details 
 observations every time.
 
 Find 4-5 items across NYC and London. {_city_label_instruction()}
-For each return: headline (punchy, max 8 words), detail (max 12 words), so_what (max 12 words —
-why the ResX team should care, factual and direct, no hype), url (direct link if available), city.
+For each return: headline (punchy, max 8 words), detail (max 12 words — factual, what happened,
+no hype — no "buzzy energy", no "everyone's talking about"), url (direct link if available), city.
 """
     return _run_news_research(prompt, "culture", exclude, seen_stories, holiday_hint)
 
@@ -908,8 +1000,11 @@ For each lead:
    link field (website/source_url for openings, url for news items) MUST be that EXACT URL,
    character for character. Never substitute a different link you find while researching,
    even one you think is a "better" source — the whole point is that she already chose it.
-5. so_what/blurb must answer: why should the ResX team care? Strategic, operational,
-   cultural, competitive, or product-relevant — max 15 words.
+5. Keep blurb (openings) and detail (news) factual and specific — what it is / what happened —
+   no hype or vibe commentary. For ai_product ONLY, so_what states the concrete reason it matters
+   (lowers costs / worth testing / improves the team's workflow). For a cover_image_post on an
+   opening: only include an Instagram PHOTO post (instagram.com/p/…, never a video/reel) you've
+   confirmed shows THIS restaurant's food; if you can't confirm it, omit it.
 
 Only reject a lead if:
 - broken: you genuinely cannot find any real content behind it — a dead link, nothing exists
@@ -1248,7 +1343,6 @@ def format_opening_item(item: dict) -> str:
     name = item.get("name", "")
     date = item.get("date", "")
     blurb = item.get("blurb", "")
-    so_what = item.get("so_what", "")
     website = item.get("website", "")
     ig_handle = item.get("instagram_handle", "")
     ig_url = item.get("instagram_url", "")
@@ -1269,8 +1363,6 @@ def format_opening_item(item: dict) -> str:
     lines = [name_str]
     if blurb:
         lines.append(blurb)
-    if so_what:
-        lines.append(f"→ {so_what}")
 
     return "\n".join(lines)
 
@@ -1281,11 +1373,10 @@ def format_news_items(items: list) -> str:
         tag = city_tag(item)
         headline = item.get("headline", "")
         detail = item.get("detail", "")
-        so_what = item.get("so_what", "")
         url = item.get("url", "")
         headline_str = f"*{safe_link(url, headline)}*" if url else f"*{headline}*"
         tag_str = f"  _{tag}_" if tag else ""
-        lines.append(f"• {headline_str}{tag_str}\n  {detail} _{so_what}_")
+        lines.append(f"• {headline_str}{tag_str}\n  {detail}")
     return "\n\n".join(lines)
 
 
@@ -1553,6 +1644,13 @@ def main():
 
         print(f"Editing & ranking {len(pool)} candidate stories...")
         final_stories = edit_and_rank(pool, watching_context=watching_carried, holiday_hint=holiday_hint)
+
+        # Final deterministic link hygiene on every opening/watching item — guarantees no video,
+        # profile-as-cover, or hard-dead cover/IG link ever renders, regardless of whether it came
+        # from research, a pinned input, or an edit_and_rank merge.
+        for s in final_stories:
+            if s.get("category") in ("new_opening", "watching"):
+                sanitize_opening_links(s)
 
         new_opening_stories = [s for s in final_stories if s.get("category") == "new_opening"]
         watching = watching_carried + [s for s in final_stories if s.get("category") == "watching"]

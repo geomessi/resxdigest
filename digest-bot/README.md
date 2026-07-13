@@ -8,6 +8,8 @@
 
 Posts a curated restaurant-industry Slack digest twice a week (Mon/Fri) for the ResX team — a last-minute restaurant reservation marketplace for 25-35 year olds in NYC and London. It is explicitly framed as an **executive briefing, not a news summary**: every story is expected to answer "why should the ResX team care?" (strategic, operational, cultural, competitive, or product-relevant), and content that's merely interesting but wouldn't change what the team discusses that week is filtered out.
 
+> **2026-07-13 update:** UGC covers and Instagram links on openings are now **correct-or-omit** — a cover must be a verified Instagram *photo* post (`instagram.com/p/…`, never a video/reel or profile) of the right restaurant, else it's omitted (deterministic gate `sanitize_opening_links` + `is_photo_post_url`, plus a `web_fetch`-based confirm step in the prompt). A "coming soon" venue that surfaced as a New Opening now gets reclassified to Watching (`looks_not_yet_open`). The editorializing "→ why care" (`so_what`) line was **cut** from openings/Industry/Culture (kept as a factual `why_it_matters` only in AI & Product); blurbs/details are factual, no hype. See `CLAUDE.md` → "2026-07-13 update".
+
 Five sections, in order:
 1. **New Openings** (NYC + London) — restaurants/hotels/bakeries/bars/members clubs that have officially opened
 2. **Watching** — announced-but-not-open venues, tracked week to week until they graduate to New Openings
