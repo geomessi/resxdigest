@@ -269,7 +269,9 @@ cut it. Rank everything by these instincts, in priority order:
 
 1. MOMENTUM, NOT PEAK. Catch the wave on the way UP. A spot people are JUST starting to post
    from beats one that already saturated the feed. Early > complete.
-2. STOP THE SCROLL. Visually striking, surprising, craveable, or genuinely funny. Forgettable = out.
+2. STOP THE SCROLL. Visually striking, surprising, craveable, or genuinely funny. Strongly prefer
+   a post that actually SHOWS the food / drink / experience (the craveable thing) over a storefront
+   or exterior shot. Forgettable = out.
 3. DESIRE / FOMO. ResX sells the feeling of "I need to be there / eat that / book this tonight."
    Lead with content that creates want.
 4. SHAREABLE & SAVEABLE. Stuff people send to a friend or save ("omg we have to go"). That
@@ -288,6 +290,11 @@ WHAT TO HUNT FOR (wide aperture — this is a culture feed, not a trade publicat
   major NYC/London city moment (e.g. someone climbing a landmark to propose). If ResX could ride
   it in its social voice, it counts.
 - Timely lifestyle hooks: heatwave treats, marathon, Pride, holiday weekends, first day of patio szn.
+- When a cultural moment or holiday is in play (Bastille Day, a premiere, a heatwave, a big match),
+  surface the SPECIFIC venue doing something for it — a deal, a special, a themed menu, a collab —
+  with the real post. A generic tie-in is weak (a plain croissant on Bastille Day); "X's Bastille
+  Day free-Champagne hour" or "Y's French-themed pop-up today" is strong. If nothing specific is
+  actually happening, skip the generic angle rather than forcing it.
 
 ALWAYS CHECK THESE — ResX's key restaurants (both cities). Every run, look for anything genuinely
 new worth posting at these specific spots (a new dish, a collab, a viral moment, big press today):
@@ -306,9 +313,14 @@ articles usually EMBED the original post. So your workflow is:
      instagram.com/reel/…, or tiktok.com/@user/video/… permalink straight out of the page.
   3. Use THAT real permalink as the post link.
 
-LINK ACCURACY IS CRITICAL. Only use a URL you actually retrieved (from a search result or a
-fetched page). Never construct, guess, autocomplete, or recall a URL from memory. Confirm the
-link genuinely matches the content you're describing. If unsure a link is right, don't use it.
+LINK ACCURACY IS CRITICAL — broken or wrong links are the #1 complaint. Only use a URL you
+actually retrieved (from a search result or a fetched page). Never construct, guess, autocomplete,
+"fix" spelling, or recall a URL from memory. This applies DOUBLY to account_url: use only the exact
+profile URL you saw in the fetched article or a search result — do NOT build it from the venue's
+name or handle, and do NOT correct a spelling yourself. A wrong account (a typo like an extra
+letter, the wrong handle, or an account that doesn't exist — some brands aren't on Instagram at
+all) is WORSE than no account. If you cannot verify the exact profile URL from a source, omit
+account_url entirely. Confirm every link genuinely matches what you're describing; if unsure, drop it.
 
 ═══════════════════════════════════════════════════════════════════════════
 LINK FALLBACK LADder — so we're NEVER empty
@@ -316,11 +328,13 @@ LINK FALLBACK LADder — so we're NEVER empty
 For each opportunity, give the BEST link you can, in this order:
   BEST → a real post permalink (post_url). Always try for this first.
   FALLBACK → if you genuinely can't find the specific post, give the editorial ARTICLE about the
-     moment (article_url) PLUS the venue/creator's account (account_url). This ships as a labeled
-     "lead" — Georgia grabs the exact post herself. The account MUST be attached (never make her
-     hunt blind). Fallback is only for a SPECIFIC editorial moment (Time Out / Eater / Infatuation
-     / Grub Street style) — NEVER a generic listicle/roundup and NEVER a restaurant's own
-     marketing homepage.
+     moment (article_url), plus the venue/creator's account (account_url) ONLY when you can extract
+     its exact profile URL from that article — otherwise omit the account rather than guess it (see
+     LINK ACCURACY). This ships as a labeled "lead" — Georgia grabs the exact post herself.
+     Fallback is only for a SPECIFIC, single-subject editorial moment (one opening, one collab, one
+     sighting — Time Out / Eater / Infatuation / Grub Street style). A "best restaurants" / "top
+     tables" / "where to book this month" ROUNDUP or listicle does NOT count and must never be the
+     source, and never a restaurant's own marketing homepage.
   NEVER → don't drop a genuinely great moment just because you lack a permalink; ship it as a lead.
 Worked example of a great lead: Time Out — "the NYC hot dog king is giving out 500 free hot dogs
 outside the Met next week" + @thehotdogking's account. Timely, specific, screenshot-worthy.
@@ -522,7 +536,10 @@ def tier_and_label(items: list, today_iso: str, source_type: str) -> tuple:
     skips = []
     for raw in items:
         item = dict(raw)
-        has_article_lead = is_probably_article(item.get("article_url", "")) and bool(item.get("account_url"))
+        # A lead needs a real editorial article. The account is a bonus, extracted-not-guessed
+        # (see the prompt) — we allow an article-only lead so the model omits a shaky account
+        # rather than attach a wrong one (wrong accounts were the #1 complaint).
+        has_article_lead = is_probably_article(item.get("article_url", ""))
 
         if item.get("type") == "post_idea":
             valid_posts = [p for p in item.get("posts", []) or []
@@ -915,7 +932,7 @@ def main():
     save_json(SEEN_UGC_FILE, all_entries)
     save_json(LAST_POST_FILE, {
         "date": today_iso,
-        "posted_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "posted_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     })
 
     # Pinned-leads queue is consumed each run — every lead was resolved above
