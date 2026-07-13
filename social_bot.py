@@ -158,10 +158,26 @@ def _stream_once(convo: list, system: str, max_tokens: int) -> tuple:
                 elif t == "error":
                     print(f"Anthropic stream error: {evt.get('error')}")
                     break
-    except Exception as e:  # timeout, connection drop, HTTP error — return whatever we have
+    except urllib.error.HTTPError as e:  # e.g. 400 on a resume request — log the body to diagnose
+        body = ""
+        try:
+            body = e.read().decode("utf-8", "replace")[:1200]
+        except Exception:
+            pass
+        print(f"Anthropic HTTP {e.code} on stream request: {body}")
+    except Exception as e:  # timeout, connection drop — return whatever we have
         print(f"Anthropic request failed ({type(e).__name__}: {e}); returning partial output.")
 
-    content = [blocks[i] for i in sorted(blocks.keys())]
+    # Sanitize the reconstructed turn before it's echoed back to resume a pause_turn: the API
+    # rejects empty text blocks in assistant content, and a server_tool_use needs an input key.
+    content = []
+    for i in sorted(blocks.keys()):
+        b = blocks[i]
+        if b.get("type") == "text" and not (b.get("text") or "").strip():
+            continue
+        if b.get("type") == "server_tool_use" and "input" not in b:
+            b["input"] = {}
+        content.append(b)
     return "".join(text_parts), stop_reason, content
 
 
