@@ -410,8 +410,13 @@ so be honest: momentum (on the way up vs. saturated), stop_scroll (does it stop 
 desire_fit (FOMO + on-brand for ResX's audience), timeliness (a real reason it's today),
 source_quality (real post/creator/editorial vs. weak source).
 
-DIVERSITY. Don't return two items about the same venue/moment/creator/song unless they're
-genuinely distinct — and give distinct ones different "subject" and "moment" values.
+DIVERSITY — SPREAD ACROSS CREATORS AND VENUES. Never feature the same source account/creator more
+than once in a day (don't surface two different posts both from, say, @ijustwant2eat — pick their
+single best and move on). Set "source_account" to the handle the post/repost actually comes from
+so this can be enforced. The mining tends to over-rely on whichever creator is most web-searchable,
+so consciously vary the accounts you pull from — different creators, different venues, both cities.
+Don't return two items about the same venue/moment/song either; give distinct ones different
+"subject" and "moment" values.
 
 Also list what you researched and chose NOT to include, as "considered_and_rejected"
 (brief subject/url/reason each; best effort).
@@ -420,11 +425,11 @@ Return ONLY a valid JSON object, no markdown:
 {{
   "opportunities": [
     {{"type": "repost", "origin": "researched|pinned", "pinned_input": "...", "headline": "...",
-      "subject": "...", "moment": "...", "city": "NYC|LDN|BOTH",
+      "subject": "...", "moment": "...", "source_account": "handle_without_@", "city": "NYC|LDN|BOTH",
       "scores": {{"momentum": 1, "stop_scroll": 1, "desire_fit": 1, "timeliness": 1, "source_quality": 1}},
       "post_url": "...", "account_url": "...", "article_url": "..."}},
     {{"type": "post_idea", "origin": "researched|pinned", "pinned_input": "...", "headline": "...",
-      "subject": "...", "moment": "...", "city": "NYC|LDN|BOTH",
+      "subject": "...", "moment": "...", "source_account": "handle_without_@", "city": "NYC|LDN|BOTH",
       "scores": {{"momentum": 1, "stop_scroll": 1, "desire_fit": 1, "timeliness": 1, "source_quality": 1}},
       "posts": [{{"post_url": "...", "account_url": "...", "why": "..."}}],
       "account_url": "...", "article_url": "..."}}
@@ -440,7 +445,8 @@ Return ONLY a valid JSON object, no markdown:
   ]
 }}
 Field notes: "moment" is a short phrase naming the SPECIFIC thing (used for dedup — name the real
-event, not the idea). "subject" is the venue/creator/topic (max 4 words). Include only the fields
+event, not the idea). "subject" is the venue/creator/topic (max 4 words). "source_account" is the
+plain handle (no @) the post/repost comes from, used to avoid featuring one creator twice a day. Include only the fields
 relevant to the item's type. Omit "scores" for pinned items. Use "post_url"/"posts" when you have
 a real permalink; use "article_url" + "account_url" as the lead fallback when you don't.
 """
@@ -661,26 +667,47 @@ def resolve_pinned(pinned_leads: list, opportunities: list, pinned_rejected: lis
     return kept, skips, matched_inputs
 
 
+def account_identity(item: dict) -> str:
+    """The creator/account an item comes from, normalized for dedup. Prefers the model-reported
+    `source_account` handle; falls back to the handle inside account_url. Used to stop one
+    web-searchable creator (e.g. @ijustwant2eat) from dominating a single digest."""
+    acct = (item.get("source_account") or "").strip().lower().lstrip("@")
+    if acct:
+        return acct
+    m = re.search(r"(?:instagram\.com|tiktok\.com)/@?([\w.\-]+)", item.get("account_url") or "")
+    return m.group(1).lower() if m else ""
+
+
 def apply_diversity(ordered_items: list, today_iso: str) -> tuple:
-    """Caps the digest at one item per subject (venue/topic/creator/song), in the given
-    priority order — pass pinned items first so they win any conflict with researched ones."""
+    """Caps the digest at one item per subject (venue/topic) AND one per source account/creator,
+    in the given priority order — pass pinned items first so they win any conflict. The account
+    cap fights the mining's bias toward whichever creator is most web-searchable."""
     kept = []
     skips = []
-    seen_this_run = set()
+    seen_subjects = set()
+    seen_accounts = set()
     for item in ordered_items:
         subject = (item.get("subject") or "").strip().lower()
-        if subject and subject in seen_this_run:
+        account = account_identity(item)
+        dup_reason = None
+        if subject and subject in seen_subjects:
+            dup_reason = f"already have an item for subject '{item.get('subject', '')}' in this digest"
+        elif account and account in seen_accounts:
+            dup_reason = f"already have an item from account '{account}' in this digest"
+        if dup_reason:
             skips.append({
                 "date": today_iso, "pinned_input": item.get("pinned_input", ""),
                 "subject": item.get("subject", ""),
                 "url": (urls_in_item(item) or [""])[0],
                 "reason": "diversity_cap",
-                "detail": f"already have an item for '{item.get('subject', '')}' in this digest",
+                "detail": dup_reason,
                 "source_type": item.get("origin", "researched"),
             })
             continue
         if subject:
-            seen_this_run.add(subject)
+            seen_subjects.add(subject)
+        if account:
+            seen_accounts.add(account)
         kept.append(item)
     return kept, skips
 
