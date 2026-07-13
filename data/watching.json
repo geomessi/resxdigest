@@ -73,28 +73,6 @@
     "source_url": "https://www.hot-dinners.com/2026042315000/Gastroblog/Latest-news/soraya-london-pachamama-group-loxton-walk-marylebone-restaurant"
   },
   {
-    "name": "Kismet",
-    "date": "opens July 16",
-    "blurb": "Dom Hamdy + ex-BiBi chef Keiran Mustafa bring live-music Istanbul meyhane vibes to Borough.",
-    "city": "LDN",
-    "website": "https://kismet.london",
-    "instagram_handle": "",
-    "instagram_url": "",
-    "cover_image_post": "",
-    "source_url": "https://premierconstructionnews.com/2026/06/29/kismet-a-new-restaurant-from-dom-hamdy-keiran-mustafa-to-open-next-month/"
-  },
-  {
-    "name": "Hon's BBQ",
-    "date": "opens July 17",
-    "blurb": "Poker-winnings-funded Texan-Asian BBQ goes permanent above Crate Brewery, Hackney Wick.",
-    "city": "LDN",
-    "website": "",
-    "instagram_handle": "",
-    "instagram_url": "",
-    "cover_image_post": "",
-    "source_url": "https://thenudge.com/hons-bbq/"
-  },
-  {
     "name": "HUMM",
     "date": "opens fall 2026",
     "blurb": "Daniel Humm's 200-seat wood-fired West Village restaurant \u2014 EMP meets neighborhood brasserie.",
@@ -110,5 +88,69 @@
     "merged_from": [
       "humm::NYC"
     ]
+  },
+  {
+    "name": "Dean's",
+    "date": "opens soon 2026",
+    "blurb": "Coastal British seafood from the King team \u2014 langoustines, fish pie, crumpets.",
+    "so_what": "Reservations already competitive; British wave moment, ResX audience perfect fit.",
+    "city": "NYC",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://www.theinfatuation.com/new-york/guides/nyc-restaurant-openings-2026",
+    "category": "watching",
+    "id": "deans::NYC",
+    "importance_rank": 1,
+    "merged_from": []
+  },
+  {
+    "name": "KID",
+    "date": "opens September 2026",
+    "blurb": "Ex-Mangal II chef Serta\u00e7 Dirik's first solo \u2014 Central Anatolian fire cooking in Soho.",
+    "so_what": "Biggest anticipated London opening of the year, reservations will be impossible.",
+    "city": "LDN",
+    "website": "https://kid.london",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://www.timeout.com/london/news/acclaimed-chef-sertac-dirik-first-restaurant-soho-kid-061626",
+    "category": "watching",
+    "id": "kid::LDN",
+    "importance_rank": 2,
+    "merged_from": []
+  },
+  {
+    "name": "Bubala Covent Garden",
+    "date": "opens September 2026",
+    "blurb": "London's cult vegetarian Middle Eastern restaurant opens biggest site yet in Theatreland.",
+    "so_what": "122-cover flagship in prime central location, always fully booked.",
+    "city": "LDN",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://www.timeout.com/london/news/hyped-london-vegetarian-restaurant-bubala-is-opening-its-biggest-location-yet-052726",
+    "category": "watching",
+    "id": "bubala covent garden::LDN",
+    "importance_rank": 3,
+    "merged_from": []
+  },
+  {
+    "name": "Coppa Club London Bridge",
+    "date": "opens July 23",
+    "blurb": "Flagship all-day riverside venue with panoramic Thames views between Shard and Tower Bridge.",
+    "so_what": "Prime summer terrace spot, all-day bookings = high ResX volume opportunity.",
+    "city": "LDN",
+    "website": "https://www.coppaclub.co.uk/london-bridge",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "cover_image_post": "",
+    "source_url": "https://www.hot-dinners.com/2026061015119/Gastroblog/Latest-news/coppa-club-london-bridge-restaurant-opening",
+    "category": "watching",
+    "id": "coppa club bridge::LDN",
+    "importance_rank": 4,
+    "merged_from": []
   }
 ]

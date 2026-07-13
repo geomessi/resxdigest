@@ -245,5 +245,82 @@
     "headline": "Kimi K2.7 Code lands in GitHub Copilot picker",
     "detail": "First open-weight model in Copilot; lower-cost billing, Azure-hosted",
     "so_what": "Enable in VS Code to test on routine TypeScript edits and cut Copilot credit spend \u2014 hold off on proprietary code until provenance is reviewed"
+  },
+  {
+    "key": "https://www.gotdiibs.com/",
+    "date": "2026-07-13",
+    "headline": "Diibs teases full platform rebuild with AI concierge",
+    "detail": "Site now previews Diibsy AI agent, Square/Clover POS sync, and multi-city rebuild.",
+    "so_what": "Direct bid-for-table competitor openly repositioning toward AI-first, POS-native model."
+  },
+  {
+    "key": "https://townhall.com/columnists/mariolopez/2026/07/11/big-tech-vs-restaurants-n2679231",
+    "date": "2026-07-13",
+    "headline": "OpenTable mandate draws antitrust op-ed fire",
+    "detail": "July 11 op-ed calls policy anticompetitive; WA AG reviewing terms.",
+    "so_what": "Regulatory heat on OpenTable's exclusivity is a tailwind for multi-platform alternatives like ResX."
+  },
+  {
+    "key": "https://www.nrn.com/emerging-chains/wonder-looks-to-raise-600m-in-a-reported-pre-ipo-funding-round",
+    "date": "2026-07-13",
+    "headline": "Wonder files SEC docs for $600M pre-IPO round",
+    "detail": "SEC filing confirms $355M raised; ~$9B valuation, IPO likely 2027.",
+    "so_what": "Wonder going public reshapes who controls delivery + dine-in data at scale \u2014 watch its reservation play."
+  },
+  {
+    "key": "https://www.nrn.com/emerging-chains/wonder-acquires-mighty-quinn-s-bbq",
+    "date": "2026-07-13",
+    "headline": "Wonder acquires Mighty Quinn's BBQ NYC",
+    "detail": "Eight-unit NYC fast casual absorbed into Wonder's 30-brand food hall platform.",
+    "so_what": "Wonder consolidating real NYC restaurant brands pre-IPO \u2014 signals dining inventory aggregation strategy."
+  },
+  {
+    "key": "https://www.timeout.com/newyork/news/bostons-best-lobster-roll-is-popping-up-in-the-west-village-next-week-061325",
+    "date": "2026-07-13",
+    "headline": "Edith's x Wiener's Circle: Chicago Dog Hits NYC",
+    "detail": "July collab at Williamsburg + West Village, limited run only",
+    "so_what": "Named hot dog collab on National Hot Dog Day week \u2014 reservation-adjacent urgency play"
+  },
+  {
+    "key": "https://www.theinfatuation.com/new-york/reviews/bark-barbecue-bushwick",
+    "date": "2026-07-13",
+    "headline": "Bark Barbecue's 8,000 sq ft Bushwick Flagship Is Open",
+    "detail": "Dominican-Texan pitmaster, walk-ins only, no reservations",
+    "so_what": "Walk-in-only 300-seat venue signals appetite for no-rez dining without a platform"
+  },
+  {
+    "key": "https://www.timeout.com/newyork/news/ample-hills-creamery-is-launching-three-new-super-spicy-ice-cream-and-sorbet-flavors-this-weekend-062626",
+    "date": "2026-07-13",
+    "headline": "Ample Hills x Heatonist: Waiver Required for Scoop",
+    "detail": "Carolina Reaper ice cream at Wythe Ave cart, weekends through July 26",
+    "so_what": "Creator-bait collab driving physical traffic \u2014 stunt format our audience is already sharing"
+  },
+  {
+    "key": "https://ignilondon.com/menus/",
+    "date": "2026-07-13",
+    "headline": "IGNI Launches Chef Series with Interlude's Jean Delport",
+    "detail": "One night only July 27, \u00a3195, British/South African/French tasting menu",
+    "so_what": "IGNI's new 'At The Pass' collab format is the London version of what ResX should be surfacing"
+  },
+  {
+    "key": "https://www.shortlist.com/food-and-drink/peckham-weekender-returns-for-2026-with-a-huge-foodie-festival-taking-over-local-restaurants",
+    "date": "2026-07-13",
+    "headline": "Peckham Weekender: 19 Restaurants, \u00a310 Specials, One Weekend",
+    "detail": "July 24\u201326, Mr Bao to Forza Wine, \u00a31/dish to Peckham Pantry",
+    "so_what": "Community dining format drives foot traffic and social posts without a booking layer \u2014 note the model"
+  },
+  {
+    "key": "https://openai.com/index/gpt-5-6/",
+    "date": "2026-07-13",
+    "headline": "GPT-5.6 Terra: Frontier coding at half price",
+    "detail": "OpenAI launched Sol, Terra, Luna on July 9; Terra is $2.50/$15 per million tokens",
+    "so_what": "Swap Node/TypeScript API calls to gpt-5.6-terra today \u2014 GPT-5.5-class output at ~50% less cost"
+  },
+  {
+    "key": "https://cursor.com/blog/grok-4-5",
+    "date": "2026-07-13",
+    "headline": "Grok 4.5 live in Cursor, no extra charge",
+    "detail": "SpaceXAI + Cursor co-trained model, now default in Cursor on all existing plans",
+    "so_what": "Enable Grok 4.5 in Cursor this week \u2014 it's included in your subscription, test on TypeScript tasks now"
   }
 ]
