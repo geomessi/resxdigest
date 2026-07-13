@@ -20,6 +20,7 @@ return only for a genuinely new "moment". Both cities' key restaurants are track
 import os
 import json
 import re
+import time
 import urllib.request
 import datetime
 from pathlib import Path
@@ -75,38 +76,35 @@ def save_json(path: Path, data):
 # web_search can't retrieve post-level links, but articles embed them). Both are the
 # _20260209 dynamic-filtering variants, supported on claude-sonnet-4-6. max_content_tokens
 # caps how much of each fetched article is pulled in, to bound cost.
-# max_uses caps keep the whole search→fetch chain under the server tool loop's ~10-iteration
-# limit, so the model finishes in ONE streamed response (no pause_turn) — enough to mine a few
-# articles for 3-5 opportunities. NOTE: the _20260209 variants run dynamic-filtering code
-# execution under the hood, so each web_fetch costs ~2 server iterations; budget accordingly
-# (2 searches + 3 fetches ≈ 8 iterations < 10). Raising these needs pause_turn resumption first.
 TOOLS = [
-    {"type": "web_search_20260209", "name": "web_search", "max_uses": 2},
-    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3, "max_content_tokens": 6000},
+    {"type": "web_search_20260209", "name": "web_search", "max_uses": 4},
+    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5, "max_content_tokens": 6000},
 ]
 
-# We MUST stream. A non-streaming request that runs long server-tool loops sits idle (no bytes)
-# while the server works, and Anthropic's edge closes the connection (RemoteDisconnected after
-# ~4 min — observed 2026-07-11). Streaming keeps the connection alive with events/pings, so it
-# doesn't get dropped. REQUEST_TIMEOUT is the per-read socket timeout (the gap between events);
-# pings keep it well under. On any failure we return the partial text (usually "" → empty
-# research → loud warning), never hang. The workflow also sets a job-level timeout-minutes.
+# Two hard-won facts drive this design (both observed 2026-07-11):
+# 1. We MUST stream. A non-streaming request that runs long server-tool loops sits idle (no
+#    bytes) while the server works, and Anthropic's edge drops the idle connection
+#    (RemoteDisconnected after ~4 min). Streaming keeps it alive with events/pings.
+# 2. We MUST handle pause_turn. The server tool loop caps at ~10 iterations per response (and the
+#    _20260209 tools spend extra iterations on dynamic-filtering code execution), so a real
+#    search→fetch→mine chain pauses BEFORE emitting the final JSON. We reconstruct the assistant
+#    turn from the stream and re-send to resume, until it finishes (end_turn) or we hit the budget.
 REQUEST_TIMEOUT = 300   # seconds allowed between streamed events before we give up
+OVERALL_BUDGET = 780    # seconds across all pause_turn continuations (job cap is 25 min)
 
 
-def call_anthropic(messages: list, system: str, max_tokens: int = 4000) -> str:
-    """One streamed Claude turn with server-side web_search + web_fetch (the article-link-mining
-    engine). Streaming is required — see the note above — to survive the long server tool loop
-    without the connection being dropped. Returns the accumulated response text (the JSON answer)."""
+def _stream_once(convo: list, system: str, max_tokens: int) -> tuple:
+    """Stream one request. Returns (answer_text, stop_reason, assistant_content_blocks). The
+    content blocks are reconstructed from the SSE stream so we can echo them back to resume a
+    pause_turn (they include the server_tool_use + web_search/web_fetch result blocks)."""
     payload = json.dumps({
         "model": "claude-sonnet-4-6",
         "max_tokens": max_tokens,
         "system": system,
-        "messages": messages,
+        "messages": convo,
         "tools": TOOLS,
         "stream": True,
     }).encode()
-
     req = urllib.request.Request(
         "https://api.anthropic.com/v1/messages",
         data=payload,
@@ -118,6 +116,8 @@ def call_anthropic(messages: list, system: str, max_tokens: int = 4000) -> str:
         method="POST",
     )
 
+    blocks = {}          # index -> content block (reconstructed)
+    json_buffers = {}    # index -> accumulated input_json string (for server_tool_use inputs)
     text_parts = []
     stop_reason = None
     try:
@@ -133,23 +133,59 @@ def call_anthropic(messages: list, system: str, max_tokens: int = 4000) -> str:
                     evt = json.loads(blob)
                 except json.JSONDecodeError:
                     continue
-                etype = evt.get("type")
-                if etype == "content_block_delta":
+                t = evt.get("type")
+                if t == "content_block_start":
+                    blocks[evt.get("index")] = dict(evt.get("content_block", {}) or {})
+                elif t == "content_block_delta":
+                    idx = evt.get("index")
                     delta = evt.get("delta", {})
-                    if delta.get("type") == "text_delta":
+                    dt = delta.get("type")
+                    if dt == "text_delta":
                         text_parts.append(delta.get("text", ""))
-                elif etype == "message_delta":
+                        blk = blocks.setdefault(idx, {"type": "text", "text": ""})
+                        blk["text"] = blk.get("text", "") + delta.get("text", "")
+                    elif dt == "input_json_delta":
+                        json_buffers[idx] = json_buffers.get(idx, "") + delta.get("partial_json", "")
+                elif t == "content_block_stop":
+                    idx = evt.get("index")
+                    if idx in json_buffers and idx in blocks:
+                        try:
+                            blocks[idx]["input"] = json.loads(json_buffers[idx] or "{}")
+                        except json.JSONDecodeError:
+                            blocks[idx].setdefault("input", {})
+                elif t == "message_delta":
                     stop_reason = evt.get("delta", {}).get("stop_reason") or stop_reason
-                elif etype == "error":
+                elif t == "error":
                     print(f"Anthropic stream error: {evt.get('error')}")
                     break
     except Exception as e:  # timeout, connection drop, HTTP error — return whatever we have
         print(f"Anthropic request failed ({type(e).__name__}: {e}); returning partial output.")
 
-    if stop_reason == "pause_turn":
-        print("WARNING: response ended on pause_turn (hit the server tool-loop cap before "
-              "finishing) — output may be incomplete. Consider lowering tool max_uses.")
-    return "".join(text_parts)
+    content = [blocks[i] for i in sorted(blocks.keys())]
+    return "".join(text_parts), stop_reason, content
+
+
+def call_anthropic(messages: list, system: str, max_tokens: int = 4000,
+                   max_continuations: int = 4) -> str:
+    """One logical Claude turn with the article-link-mining tools, streamed and resumed across
+    pause_turn until it finishes. Returns the final answer text (the JSON)."""
+    convo = list(messages)
+    final_text = ""
+    started = time.monotonic()
+    for turn in range(max_continuations + 1):
+        text, stop_reason, content = _stream_once(convo, system, max_tokens)
+        if text.strip():
+            final_text = text  # the JSON lands in the final (non-paused) turn
+        if stop_reason != "pause_turn":
+            break
+        if time.monotonic() - started > OVERALL_BUDGET:
+            print("Hit overall research budget; stopping pause_turn continuation.")
+            break
+        if not content:
+            break  # nothing to resume from
+        print(f"pause_turn — resuming research (continuation {turn + 1})")
+        convo = convo + [{"role": "assistant", "content": content}]
+    return final_text
 
 
 def post_to_slack(blocks: list):
