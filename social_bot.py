@@ -843,16 +843,21 @@ def main():
         f"({len(pinned_kept)} pinned, {len(final_items) - len(pinned_kept)} researched); "
         f"{len(new_skip_entries)} skipped this run"
     )
-    if not final_items:
-        print("⚠️  WARNING: zero opportunities to publish — there should always be something. "
-              "Check the model output and data/social_skipped_log.json.")
-
     blocks = build_slack_blocks(today_str, final_items, audio, forced=forced_rerun)
 
     if dry_run:
         print("[DRY RUN] Final Slack payload (not posted, no state written):")
         print(json.dumps({"blocks": blocks}, indent=2))
         return
+
+    # HARD RULE: never post an empty digest to the team channel. If research came back empty,
+    # fail the run loudly (non-zero exit → the GitHub job shows failed, no state is written, and
+    # the same-day guard isn't consumed so a re-trigger can still succeed) instead of posting a
+    # warning to #social. An empty result is an ops problem to fix, never a team-facing message.
+    if not final_items:
+        print("⚠️  Zero opportunities to publish — REFUSING to post an empty digest to #social. "
+              "Failing this run so it's visible in Actions. Check the log and social_skipped_log.json.")
+        raise SystemExit(1)
 
     post_to_slack(blocks)
     print("Posted to #social" + (" [forced re-run]" if forced_rerun else ""))
