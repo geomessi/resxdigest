@@ -133,5 +133,54 @@
     "url": "https://secretnyc.co/new-restaurants-bars-nyc-july-2026",
     "reason": "clever concept (cocktails as soft serve) but no embedded permalink in the article and the LES location is more novelty than dining destination for ResX's audience",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "Soraya Marylebone opening today",
+    "url": "https://www.instagram.com/sorayamarylebone/",
+    "reason": "Account URL already in dedup sent list \u2014 cannot reuse",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "Bar Blondie Queen's Park opening 14 July",
+    "url": "https://www.hot-dinners.com/Features/Hot-Dinners-recommends/new-london-restaurants-opening-in-july-2026",
+    "reason": "Opening today but no visual post or confirmed account found; source page JS-blocked on fetch; weaker than today's Bastille Day activations for timeliness and desire",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "Brasserie Z\u00e9del Bastille Day 12\u201314 July",
+    "url": "https://tonemagazineldn.com/things-to-do-for-bastille-day-2026/",
+    "reason": "Strong Bastille Day programming but Caf\u00e9 Fran\u00e7ois is the more visually arresting and shareable pick for the same moment; two LDN Bastille Day reposts is redundant \u2014 Caf\u00e9 Fran\u00e7ois wins on stop-scroll (snail race > cabaret for social)",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "PAUL free baguette giveaway Bastille Day",
+    "url": "https://tonemagazineldn.com/things-to-do-for-bastille-day-2026/",
+    "reason": "Fun but not on-brand for a restaurant reservation app \u2014 PAUL is a bakery chain, no reservation play, lower desire/FOMO ceiling",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "Nammos London Mayfair opening",
+    "url": "https://citizen-femme.com/2026/07/07/top-tables-london-restaurants-to-book-in-july-2026/",
+    "reason": "Great opening but earlier in July, not day-specific today; no confirmed post permalink retrieved",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "Impala Soho ex-Kiln chef opening",
+    "url": "https://www.wallpaper.com/travel/restaurants/new-restaurants-in-london",
+    "reason": "On ResX tracked list and genuinely strong (wood-fire, ex-Kiln pedigree, Wallpaper coverage) but not day-specific and no confirmed post permalink found in fetched content; held for a future day when there's a specific new post to pull",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-14",
+    "subject": "Resy NYC Hit List July 2026 new additions",
+    "url": "https://blog.resy.com/the-hit-list/nyc-restaurants/",
+    "reason": "Roundup/listicle \u2014 not an acceptable lead link per brief; individual spots (Somssi, Meju etc.) worth drilling into on a future run with dedicated permalink searches",
+    "source_type": "researched"
   }
 ]
