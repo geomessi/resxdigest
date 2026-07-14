@@ -448,6 +448,47 @@ CALENDAR = [
 ]
 
 
+# Comprehensive food & drink days (added 2026-07-13, "any and all food days"). All fixed-date,
+# all treated as food days (7-day window, no special header). A hint only PRIMES the research
+# toward that day's specials/collabs — it never forces content, and edit_and_rank's relevance
+# filter still gates what actually posts, so a long list here doesn't create noise.
+# (month, day, name, hint)
+EXTRA_FOOD_DAYS = [
+    (1, 15, "National Bagel Day",        "National Bagel Day is coming up — NYC bagel culture, appetizing spreads, the perfect schmear, bagel collabs"),
+    (1, 25, "Burns Night (UK)",          "Burns Night is coming up — Scotch whisky flights, haggis specials, and Burns suppers in London"),
+    (1, 30, "National Croissant Day",    "National Croissant Day is coming up — laminated-pastry moments, viral croissant hybrids, best-bakery buzz"),
+    (2, 18, "National Drink Wine Day",   "National Drink Wine Day is coming up — natural wine bars, by-the-glass moments, wine-focused spots"),
+    (3, 17, "St. Patrick's Day",         "St. Patrick's Day is coming up — Guinness pours, Irish pubs, and going-out plans in NYC and London"),
+    (4,  7, "National Beer Day",         "National Beer Day is coming up — craft taprooms, brewery collabs, beer-hall moments"),
+    (5, 25, "National Wine Day",         "National Wine Day is coming up — wine bars, natural wine, by-the-glass lists worth flagging"),
+    (6, 18, "International Sushi Day",    "International Sushi Day is coming up — omakase counters, hand-roll bars, sushi moments"),
+    (8,  5, "National Oyster Day",        "National Oyster Day is coming up — oyster happy hours, raw bars, oysters-and-natural-wine moments"),
+    (8, 13, "National Prosecco Day",     "National Prosecco Day is coming up — prosecco/spritz specials, bottomless brunch, aperitivo moments"),
+    (8, 16, "National Rum Day",          "National Rum Day is coming up — tiki bars, daiquiris, rum-cocktail moments"),
+    (9, 18, "National Cheeseburger Day", "National Cheeseburger Day is coming up — smash burgers, best-burger debates, burger collabs"),
+    (9, 29, "National Coffee Day",       "National Coffee Day is coming up — specialty cafes, coffee collabs, the best-cortado discourse"),
+    (10, 17, "National Pasta Day",       "National Pasta Day is coming up — pasta-focused Italian spots, fresh-pasta moments, signature dishes"),
+    (11,  1, "World Vegan Day",          "World Vegan Day is coming up — plant-based menus, vegan pop-ups, standout meat-free spots"),
+    (11, 23, "National Espresso Day",    "National Espresso Day is coming up — espresso martinis (the audience's drink), cafe culture, coffee-cocktail moments"),
+]
+
+# Movable food days that fall on the Nth weekday of a month (recomputed each year, never stale).
+# (month, weekday [Mon=0..Sun=6], nth, name, hint)
+MOVABLE_FOOD_DAYS = [
+    (6, 4, 1, "National Donut Day",      "National Donut Day is coming up — viral donut shops, limited-run flavors, donut collabs"),
+    (6, 5, 2, "National Rosé Day",       "National Rosé Day is coming up — rosé all day, rooftop wine moments, by-the-glass rosé"),
+    (7, 6, 3, "National Ice Cream Day",  "National Ice Cream Day is coming up — viral scoop shops, soft-serve moments, ice-cream collabs (peak summer)"),
+]
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> datetime.date:
+    """Date of the nth <weekday> in a month (weekday: Mon=0..Sun=6) — for food days that fall on
+    e.g. the 'first Friday of June' rather than a fixed calendar date."""
+    first = datetime.date(year, month, 1)
+    offset = (weekday - first.weekday()) % 7
+    return first + datetime.timedelta(days=offset + 7 * (n - 1))
+
+
 def get_holiday_context(today: datetime.date) -> dict:
     """
     Returns {"special_header": str|None, "prompt_hints": [str]} for any holiday or food day
@@ -472,6 +513,19 @@ def get_holiday_context(today: datetime.date) -> dict:
                     special_header = f"🇺🇸 Special Edition — America's {years}th Birthday"
                 else:
                     special_header = header_tpl
+
+    # Comprehensive food & drink days (fixed and movable) — 7-day window, hint only.
+    for month, day, name, hint in EXTRA_FOOD_DAYS:
+        try:
+            holiday = datetime.date(today.year, month, day)
+        except ValueError:
+            continue
+        if 0 <= (holiday - today).days <= 7:
+            hints.append(hint)
+    for month, weekday, n, name, hint in MOVABLE_FOOD_DAYS:
+        holiday = _nth_weekday(today.year, month, weekday, n)
+        if 0 <= (holiday - today).days <= 7:
+            hints.append(hint)
 
     # Month-long observances
     if today.month == 6:
