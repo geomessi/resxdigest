@@ -438,6 +438,7 @@ CALENDAR = [
     (6, 19,  "National Martini Day",     None,                       "National Martini Day is this week — martini specials, dirty martini trends, cocktail bar news",                      True),
     (7,  4,  "Fourth of July",           "🇺🇸 Special Edition",      "Fourth of July is days away — look for patriotic dining content, summer entertaining, and July 4th specials in NYC", False),
     (7, 17,  "National Hot Dog Day",     None,                       "National Hot Dog Day is this week — hot dog collabs, NYC cart culture moments, limited-run dogs",                    True),
+    (7, 24,  "National Tequila Day",     None,                       "National Tequila Day is coming up (Jul 24) — tequila & margarita specials, agave/mezcal cocktails, and tequila bars having a moment in NYC and London", True),
     (8, 25,  "UK Summer Bank Holiday",   None,                       "UK Bank Holiday weekend — London pop-ups, long-weekend dining, and things to do",                                    False),
     (10,  4, "National Taco Day",        None,                       "National Taco Day is days away — taco collabs, creative fillings, taco pop-ups worth noting",                        True),
     (10, 31, "Halloween",                "🎃 Halloween Edition",     "Halloween is days away — spooky dining events, themed menus, Halloween pop-ups and collabs",                          False),
