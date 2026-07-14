@@ -805,13 +805,24 @@ competitors, not a general industry news scan — check EACH of the following co
 for news from the past week: {comp_str}
 
 For each one, specifically check whether it has:
-- Launched (new product, new app, new feature)
+- Launched a PRODUCT or PLATFORM — a new app, feature, AI tool, or operating system. Weight this
+  heavily: product/AI launches are the easiest to miss because they're announced on the company's
+  OWN channels or niche deal/tech accounts, not restaurant press. (E.g. a reservation competitor
+  unveiling an "AI-powered operating system" is squarely this section's job.)
 - Expanded to a new city
 - Raised funding
 - Been acquired, or acquired someone else
 - Announced a partnership
 - Made an executive hire (CEO/CTO/Head of X, etc.)
 - Made a major strategy change (pivot, repositioning, new business model)
+
+HOW TO LOOK — don't rely on restaurant editorial; it won't cover most of these:
+- Search each competitor's name with terms like "launch", "AI", "platform", "new product",
+  "operating system", "raises", "acquires", "partners with".
+- Check the company's OWN announcements (site/blog, LinkedIn, Instagram, X, Facebook) and
+  deal / hospitality-tech trackers (e.g. Traded / TradedVC, Skift, PhocusWire). A company's own
+  post announcing something IS a real, citable source.
+- web_fetch a promising announcement to confirm the specific facts before including it.
 
 If a competitor made a real, confirmed announcement in ANY of these categories in the past
 week, it MUST be included — do not skip or omit a real development just to keep the list
