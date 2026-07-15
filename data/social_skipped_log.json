@@ -182,5 +182,70 @@
     "url": "https://blog.resy.com/the-hit-list/nyc-restaurants/",
     "reason": "Roundup/listicle \u2014 not an acceptable lead link per brief; individual spots (Somssi, Meju etc.) worth drilling into on a future run with dedicated permalink searches",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Hon's BBQ Hackney Wick",
+    "url": "https://www.honsbbq.com",
+    "reason": "Instagram account @honsbbq already in sent-URL dedup list; opening is July 17 not today; skipped",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Caf\u00e9 Clement / Strand London",
+    "url": "https://www.instagram.com/cafeclementlondon/",
+    "reason": "Account URL already sent in prior run; moment already featured",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "NYC Restaurant Week Summer 2026",
+    "url": "https://www.broadwayworld.com/bwwfood-wine/article/NYC-RESTAURANT-WEEK-Summer-Edition-2026-20260707",
+    "reason": "Already featured as a moment; already-sent URL",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Rockefeller Center Fan Village World Cup",
+    "url": "https://www.nyctourism.com/worldcup26/world-cup-fan-zones/",
+    "reason": "Fan Village roundup URL already sent; reframed as today's specific England Final build-up moment instead",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Resy NYC Hit List July 2026 \u2014 Somssi, Lei etc",
+    "url": "https://blog.resy.com/the-hit-list/nyc-restaurants/",
+    "reason": "Roundup/listicle; Somssi already sent in prior run; no single-subject post permalink found",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Jackson Boxer Vesper Exmouth Market",
+    "url": "https://www.chattingfood.com/post/hot-restaurant-openings-and-news-july",
+    "reason": "Strong candidate but article is a roundup; could not fetch single-subject article or post permalink within fetch budget; dropped in favour of Impala which has cleaner editorial source",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Maai by Nikita Clapham",
+    "url": "https://www.timeout.com/london/restaurants/the-best-new-restaurants-in-london",
+    "reason": "Sally Ab\u00e9 / London Fields 'restaurant of summer' already featured as a moment in prior run; Maai is similar 'critic's pick' beat and same source URL as Impala \u2014 avoided duplicate source account",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "subject": "Five Borough Winners Special $26 World Cup deals NYC",
+    "url": "https://www.nyctourism.com/five-borough-winners-special/",
+    "reason": "Generic tourism promo across 150+ restaurants; not craveable or stop-scroll; feels like an ad not editorial",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-15",
+    "pinned_input": "",
+    "subject": "Impala restaurant Soho",
+    "url": "https://www.timeout.com/london/restaurants/the-best-new-restaurants-in-london",
+    "reason": "diversity_cap",
+    "detail": "already have an item from account 'timeoutlondon' in this digest",
+    "source_type": "researched"
   }
 ]
