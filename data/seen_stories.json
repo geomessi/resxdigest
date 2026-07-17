@@ -322,5 +322,96 @@
     "headline": "Grok 4.5 live in Cursor, no extra charge",
     "detail": "SpaceXAI + Cursor co-trained model, now default in Cursor on all existing plans",
     "so_what": "Enable Grok 4.5 in Cursor this week \u2014 it's included in your subscription, test on TypeScript tasks now"
+  },
+  {
+    "key": "https://appointmenttrader.com/sellers",
+    "date": "2026-07-17",
+    "headline": "Appointment Trader V2 now in active rollout",
+    "detail": "Site live-promotes 'Request AT V2 Access'; AI concierge + rebuilt UX now in staged rollout.",
+    "so_what": ""
+  },
+  {
+    "key": "https://www.calrest.org/news/california-state-assembly-passes-bill-crack-down-black-market-restaurant-reservations",
+    "date": "2026-07-17",
+    "headline": "California Scalping Ban Clears Senate Committee",
+    "detail": "CA AB 1640 passed Assembly May 28; Senate committee cleared it June 29, floor vote pending.",
+    "so_what": "NY's Anti-Piracy Act now has a fast follower \u2014 California's bill carries AG enforcement powers and $1,000-per-violation penalties. Both OpenTable and Resy CEOs are on record supporting it, which accelerates the national legislative pattern. For ResX: the consent-required framework spreading state by state shapes what any reservation access layer can legally offer, and closes off the grey-market inventory angle that competitors like Appointment Trader V2 are trying to exploit."
+  },
+  {
+    "key": "https://www.thelambsclub.com/",
+    "date": "2026-07-17",
+    "headline": "Lambs Club Closes July 25; Wolseley Moving In",
+    "detail": "Midtown NYC landmark closes July 25; new owner converting space to The Wolseley.",
+    "so_what": "The Wolseley is a London-originated hospitality brand with a defined aesthetic and loyal upper-end diner base \u2014 its first standalone NYC outpost at a Midtown landmark is a notable operator swap. For ResX: a new high-demand venue entering the NYC market means a new reservation setup decision point (platform choice, access strategy) at a location that will immediately attract waitlist-level demand. Worth tracking which platform they launch on."
+  },
+  {
+    "key": "https://broadticket.com/nycs-culinary-curtain-call-new-flavors-broadway-staples-define-summer-2026-dining/",
+    "date": "2026-07-17",
+    "headline": "NYC Restaurant Week Reservations Open July 14",
+    "detail": "Summer RW runs July 20\u2013Aug 16; prix-fixe $30/$45/$60; bookings live this week.",
+    "so_what": "Restaurant Week drives one of the biggest concentrated booking surges of the summer on Resy and OpenTable \u2014 hundreds of participating restaurants, compressed demand window, and prix-fixe formats that stress-test reservation systems. For ResX: this is the clearest near-term signal for platform booking volume spikes and the moment diners most actively compare access across platforms. Useful context for any product or partnership conversation happening this week."
+  },
+  {
+    "key": "https://www.broadwayworld.com/bwwfood-wine/article/July-is-National-Ice-Cream-Month-Celebrate-with-NYCs-AMPLE-HILLS-CREAMERY-20260705",
+    "date": "2026-07-17",
+    "headline": "Ample Hills x Mike's Hot Honey: Brooklyn Collab Live Now",
+    "detail": "New flavor: sweet cream base, Hot Honey-infused honeycomb candy, drizzle \u2014 all four locations.",
+    "so_what": ""
+  },
+  {
+    "key": "https://www.timeout.com/london/news/tayer-elementary-casual-covent-garden-071326",
+    "date": "2026-07-17",
+    "headline": "Casual by Tay\u0113r Opens at Cato, Six Weeks Only",
+    "detail": "World's #5 bar lands in Cato's Covent Garden basement July 15\u2013Aug 26 after fire closed original site.",
+    "so_what": ""
+  },
+  {
+    "key": "https://broadsheet.com/london/articles/hons-bbq-hackney-wick-coming",
+    "date": "2026-07-17",
+    "headline": "Hon's BBQ Opens Today in Hackney Wick",
+    "detail": "80-cover Texan-Asian BBQ above Crate Brewery; meat smoked 12hrs, sells out daily \u2014 no second service.",
+    "so_what": ""
+  },
+  {
+    "key": "https://vergemagazine.co.uk/go-greek-yogurt-opens-first-uk-store-in-london-viral-la-frozen-yogurt-brand-loved-by-gigi-hadid-arrives-in-mayfair/",
+    "date": "2026-07-17",
+    "headline": "Go Greek Yogurt's UK Debut: Already Open in Mayfair",
+    "detail": "LA celeb froyo brand (Hadid, Kardashians) opened July 11, South Molton St \u2014 first European location.",
+    "so_what": ""
+  },
+  {
+    "key": "https://www.thehandbook.com/july-popups/",
+    "date": "2026-07-17",
+    "headline": "Peckham Weekender: 19 Restaurants, \u00a310 Specials, No Booking",
+    "detail": "Forza Wine, Peckham Cellars, Mr Bao, Lai Rai serving exclusive dishes July 24\u201326; \u00a31/dish to Peckham Pantry.",
+    "so_what": ""
+  },
+  {
+    "key": "https://openai.com/index/gpt-5-6/",
+    "date": "2026-07-17",
+    "headline": "GPT-5.6 Luna hits API at $1/$6 per million",
+    "detail": "OpenAI's cheapest tier, GA July 9, available now via API",
+    "so_what": "Swap high-volume Node backend calls to Luna now \u2014 cut OpenAI spend ~80% vs Sol"
+  },
+  {
+    "key": "https://cursor.com/changelog",
+    "date": "2026-07-17",
+    "headline": "Cursor Automations triggers agents from Slack or timers",
+    "detail": "July 10 release: agents auto-launch on codebase events, no human prompt needed",
+    "so_what": "Wire a Slack message to auto-open a PR fix \u2014 eliminates manual Cursor session startup for recurring tasks"
+  },
+  {
+    "key": "https://firebase.google.com/support/releases",
+    "date": "2026-07-17",
+    "headline": "Firebase gets MCP server and Remote Config agent skill",
+    "detail": "Firestore remote MCP + new AI skill for feature flag management, live this week",
+    "so_what": "Point Cursor at the Firebase MCP to manage feature flags in Firestore without touching the console"
+  },
+  {
+    "key": "https://www.facebook.com/TradedVC/posts/dorsia-dorsia-has-unveiled-a-new-ai-powered-operating-system-designed-for-privat/1713166484147140/",
+    "date": "2026-07-17",
+    "headline": "Dorsia Unveils AI-Powered Operating System for Private Dining & Reservations",
+    "detail": "Dorsia \u2014 the members-only reservation platform backed by Index Ventures at a $146M valuation \u2014 has announced a new AI-powered operating system designed for private dining and reservations. The announcement was shared by Traded VC on Facebook and corroborated by a Dorsia Instagram post (instagram.com/p/DaoMPEWiYs2/). The system builds on Dorsia's existing AI infrastructure, which already creates detailed behavioral profiles of members to generate hyper-personalized booking suggestions and predictive demand insights for venue partners. Dorsia's About page describes its broader mission as building \"the social operating system for the cultural vanguard,\" and the new product appears to formalize that positioning as a unified OS layer spanning reservations, payments (via its patented frictionless Dorsia Pay), and AI-driven curation across its 400+ partner venues in 25+ global markets.",
+    "so_what": "Dorsia is moving from a members-only booking app into explicit operating-system territory for private dining \u2014 the same competitive space ResX operates in. If adopted at scale by high-end venues, it could entrench Dorsia as the back-end infrastructure layer for luxury reservations, making it harder for partners to switch and raising the stakes for any competing platform targeting the same premium segment."
   }
 ]

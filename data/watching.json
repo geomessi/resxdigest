@@ -62,17 +62,6 @@
     "source_url": "https://www.nrn.com/independent-restaurants/chef-eyal-shani-has-opened-naked-tomato-in-miami-with-brooklyn-to-follow"
   },
   {
-    "name": "Soraya",
-    "date": "opens July 15",
-    "blurb": "Pachamama's biggest London restaurant yet \u2014 all-day Persian feasting in Marylebone.",
-    "city": "LDN",
-    "website": "https://www.sorayarestaurant.com",
-    "instagram_handle": "",
-    "instagram_url": "",
-    "cover_image_post": "",
-    "source_url": "https://www.hot-dinners.com/2026042315000/Gastroblog/Latest-news/soraya-london-pachamama-group-loxton-walk-marylebone-restaurant"
-  },
-  {
     "name": "HUMM",
     "date": "opens fall 2026",
     "blurb": "Daniel Humm's 200-seat wood-fired West Village restaurant \u2014 EMP meets neighborhood brasserie.",
@@ -151,6 +140,32 @@
     "category": "watching",
     "id": "coppa club bridge::LDN",
     "importance_rank": 4,
+    "merged_from": []
+  },
+  {
+    "name": "Pizza 4P's",
+    "date": "July 2026",
+    "blurb": "Vietnamese-founded, Japanese-owned Asian pizza chain making its US debut in Greenpoint.",
+    "city": "NYC",
+    "website": "",
+    "instagram_handle": "@pizza4ps.us",
+    "instagram_url": "https://www.instagram.com/pizza4ps.us/",
+    "category": "watching",
+    "id": "pizza 4ps::NYC",
+    "importance_rank": 1,
+    "merged_from": []
+  },
+  {
+    "name": "Treinta Treinta",
+    "date": "July 2026",
+    "blurb": "All-day mezcaleria and coffee shop in Nolita from the La Esquina team.",
+    "city": "NYC",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "category": "watching",
+    "id": "treinta treinta::NYC",
+    "importance_rank": 2,
     "merged_from": []
   }
 ]
