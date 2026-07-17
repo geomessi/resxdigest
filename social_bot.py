@@ -332,21 +332,27 @@ all) is WORSE than no account. If you cannot verify the exact profile URL from a
 account_url entirely. Confirm every link genuinely matches what you're describing; if unsure, drop it.
 
 ═══════════════════════════════════════════════════════════════════════════
-LINK FALLBACK LADder — so we're NEVER empty
+GET THE REAL POST — an article "lead" is a LAST resort, not the default
 ═══════════════════════════════════════════════════════════════════════════
-For each opportunity, give the BEST link you can, in this order:
-  BEST → a real post permalink (post_url). Always try for this first.
-  FALLBACK → if you genuinely can't find the specific post, give the editorial ARTICLE about the
-     moment (article_url), plus the venue/creator's account (account_url) ONLY when you can extract
-     its exact profile URL from that article — otherwise omit the account rather than guess it (see
-     LINK ACCURACY). This ships as a labeled "lead" — Georgia grabs the exact post herself.
-     Fallback is only for a SPECIFIC, single-subject editorial moment (one opening, one collab, one
-     sighting — Time Out / Eater / Infatuation / Grub Street style). A "best restaurants" / "top
-     tables" / "where to book this month" ROUNDUP or listicle does NOT count and must never be the
-     source, and never a restaurant's own marketing homepage.
-  NEVER → don't drop a genuinely great moment just because you lack a permalink; ship it as a lead.
-Worked example of a great lead: Time Out — "the NYC hot dog king is giving out 500 free hot dogs
-outside the Met next week" + @thehotdogking's account. Timely, specific, screenshot-worthy.
+The actual Reel / TikTok / post IS the product. The CLEAR MAJORITY of what you return must be
+real post permalinks (post_url) — not article links. If your list comes out mostly articles,
+you have NOT drilled down hard enough: go back and find the actual posts.
+
+For each opportunity, in order:
+  1. REAL POST PERMALINK (post_url) — the goal every single time. To get it, do BOTH:
+     • fetch the article and pull the embedded instagram.com/p/…, instagram.com/reel/…, or
+       tiktok.com/@user/video/… link straight out of the page, AND
+     • search the creator/venue DIRECTLY for the post — their handle + the moment, site:instagram.com,
+       site:tiktok.com, the specific post an article is describing. Spend the effort here.
+  2. LEAD (article_url + verified account_url) — ONLY after you've genuinely tried step 1 and still
+     can't get the permalink. A lead must be a SPECIFIC single-subject editorial moment (one
+     opening / collab / sighting — Time Out / Eater / Infatuation / Grub Street style, e.g. "the NYC
+     hot dog king is giving out 500 free hot dogs outside the Met next week"), NEVER a
+     "best restaurants" / "top tables" / "where to book" roundup or a marketing homepage. Attach the
+     account only if you can extract its exact real profile URL (omit rather than guess).
+
+BETTER to return 3 items that are REAL POSTS than 6 that are just leads. Prefer fewer, realer.
+Keep leads to a small minority — if you can't get past mostly-articles, return fewer items.
 
 ═══════════════════════════════════════════════════════════════════════════
 THE THREE BUCKETS (every item is exactly one)
@@ -746,7 +752,7 @@ def format_ugc_item(item: dict) -> str:
         if account_url:
             parts.append(safe_link(account_url, "account"))
         links = "  ·  ".join(parts)
-        return f"{header}\n  {links}\n  _grab the post to repost_"
+        return f"{header}\n  {links}"
 
     if item_type == "post_idea":
         lines = [header]
