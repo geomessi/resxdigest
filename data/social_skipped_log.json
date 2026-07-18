@@ -247,5 +247,47 @@
     "reason": "diversity_cap",
     "detail": "already have an item from account 'timeoutlondon' in this digest",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-18",
+    "subject": "Lagana Shoreditch Basque cheesecake",
+    "url": "https://www.tiktok.com/discover/london-food",
+    "reason": "Tracked venue, appearing in TikTok top-5 London eats 2026 roundup \u2014 genuinely interesting momentum, but no single-subject article or real post permalink found within fetch budget; account handle unverified. Holding for next run with a dedicated fetch.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-18",
+    "subject": "Imm-Aroy viral mango sticky rice second outpost",
+    "url": "https://www.hot-dinners.com/Features/Articles/new-and-recently-opened-london-restaurants",
+    "reason": "Hot Dinners confirms second outpost opened June 26 after Chinatown original went viral \u2014 compelling momentum, but hot-dinners.com redirected JS-only on fetch, could not extract post permalink or verified account this run.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-18",
+    "subject": "Coyo Taco London first UK opening",
+    "url": "https://www.hot-dinners.com/Features/Articles/new-and-recently-opened-london-restaurants",
+    "reason": "Miami celeb favourite opening first London restaurant is genuinely exciting \u2014 but same JS redirect issue on Hot Dinners, couldn't drill to real post. Also no specific named Instagram post found.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-18",
+    "subject": "Gordon Ramsay Bread Street Kitchen 22 Bishopsgate \u2014 100th opening",
+    "url": "https://www.tiktok.com/tag/londonrestaurants",
+    "reason": "TikTok tag page mentions it but no individual post permalink surfaced; moment feels more trade-publication than ResX audience; Dante/Claridge's is the stronger London opening story today.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-18",
+    "subject": "Central Park FIFA Arena closing day July 18",
+    "url": "https://www.governor.ny.gov/news/governor-hochul-mayor-mamdani-fifa-and-nynj-host-committee-announce-free-watch-party-central",
+    "reason": "FIFA Arena in Central Park closes TODAY (July 18) \u2014 last day to play on the free pitch. Interesting timely hook but official government press release, not a craveable visual post. Subsumed into the broader World Cup Final Eve post_idea.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-18",
+    "subject": "Watermark NYC Goal Digger Margarita in soccer-ball cup",
+    "url": "https://www.6sqft.com/where-to-watch-spain-argentina-fifa-world-cup-final-in-nyc/",
+    "reason": "The soccer-ball cup margarita is genuinely craveable and visual \u2014 but could not extract a verified Watermark Instagram permalink from the 6sqft article; account_url unverifiable, and the item would be too similar to the Queens Night Market reel / Final Eve post_idea already featured.",
+    "source_type": "researched"
   }
 ]
