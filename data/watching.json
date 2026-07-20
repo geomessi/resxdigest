@@ -143,19 +143,6 @@
     "merged_from": []
   },
   {
-    "name": "Pizza 4P's",
-    "date": "July 2026",
-    "blurb": "Vietnamese-founded, Japanese-owned Asian pizza chain making its US debut in Greenpoint.",
-    "city": "NYC",
-    "website": "",
-    "instagram_handle": "@pizza4ps.us",
-    "instagram_url": "https://www.instagram.com/pizza4ps.us/",
-    "category": "watching",
-    "id": "pizza 4ps::NYC",
-    "importance_rank": 1,
-    "merged_from": []
-  },
-  {
     "name": "Treinta Treinta",
     "date": "July 2026",
     "blurb": "All-day mezcaleria and coffee shop in Nolita from the La Esquina team.",
@@ -165,6 +152,33 @@
     "instagram_url": "",
     "category": "watching",
     "id": "treinta treinta::NYC",
+    "importance_rank": 2,
+    "merged_from": []
+  },
+  {
+    "name": "Ugly Baby",
+    "date": "opens TBD 2026",
+    "blurb": "Chef Sirichai Sreparplarn's boundary-pushing Thai restaurant returns in a larger Williamsburg space.",
+    "city": "NYC",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "source_url": "https://www.timeout.com/newyork/news/beloved-thai-restaurant-ugly-baby-is-coming-back-120225",
+    "category": "watching",
+    "id": "ugly baby::NYC",
+    "importance_rank": 1,
+    "merged_from": []
+  },
+  {
+    "name": "Vesper",
+    "date": "June 2026",
+    "blurb": "Jackson Boxer's 70-cover Exmouth Market bistro with an off-menu burger selling out in seconds.",
+    "city": "LDN",
+    "website": "",
+    "instagram_handle": "@vesper.restaurant",
+    "instagram_url": "https://www.instagram.com/vesper.restaurant/",
+    "category": "watching",
+    "id": "vesper::LDN",
     "importance_rank": 2,
     "merged_from": []
   }
