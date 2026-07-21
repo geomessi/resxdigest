@@ -235,6 +235,32 @@ def safe_link(url: str, label: str) -> str:
     return f"<{url}|{label}>"
 
 
+def _salvage_json_array(text: str, key: str) -> list:
+    """Best-effort recovery of the complete objects from a JSON array named `key` inside a
+    possibly-truncated response — returns as many elements as decode cleanly, ignoring a
+    cut-off tail. Lets a truncated model response still yield its finished items instead of
+    zeroing out the whole run."""
+    m = re.search(r'"' + re.escape(key) + r'"\s*:\s*\[', text)
+    if not m:
+        return []
+    i = m.end()
+    dec = json.JSONDecoder()
+    out = []
+    n = len(text)
+    while i < n:
+        while i < n and text[i] in " \t\r\n,":
+            i += 1
+        if i >= n or text[i] == "]":
+            break
+        try:
+            obj, end = dec.raw_decode(text, i)
+        except json.JSONDecodeError:
+            break  # truncated element — stop here, keep what we have
+        out.append(obj)
+        i = end
+    return out
+
+
 def research_ugc(seen_urls: set, seen_moments: set, seen_songs: set,
                  pinned_leads: list, tracked: list) -> dict:
     seen_str = "\n".join(f"- {u}" for u in list(seen_urls)[:80]) if seen_urls else "none"
@@ -477,16 +503,17 @@ a real permalink; use "article_url" + "account_url" as the lead fallback when yo
             "Score honestly (scores set rank order). Never silently drop a pinned lead. "
             "Return only a valid JSON object, no markdown."
         ),
-        max_tokens=4000,
+        max_tokens=8000,  # was 4000 — the JSON was truncated mid-string on richer days (unparseable
+                          # → 0 opportunities → run failed). Streaming, so a high cap is safe.
     )
 
     empty = {"opportunities": [], "audio": [], "pinned_rejected": [], "considered_and_rejected": []}
+    clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
     try:
-        clean = re.sub(r"```[a-z]*", "", result).strip().strip("`").strip()
         start = clean.index("{")
         data, _ = json.JSONDecoder().raw_decode(clean, start)
         if not isinstance(data, dict):
-            return empty
+            raise ValueError("top-level JSON is not an object")
         return {
             "opportunities": data.get("opportunities", []) or [],
             "audio": data.get("audio", []) or [],
@@ -494,7 +521,15 @@ a real permalink; use "article_url" + "account_url" as the lead fallback when yo
             "considered_and_rejected": data.get("considered_and_rejected", []) or [],
         }
     except Exception as e:
-        print(f"Error parsing UGC results: {e}")
+        # A truncated/malformed response used to zero out the whole day. Salvage the complete
+        # opportunity/audio objects instead of failing the run entirely.
+        print(f"Error parsing UGC results: {e}; attempting salvage")
+        opps = _salvage_json_array(clean, "opportunities")
+        audio = _salvage_json_array(clean, "audio")
+        if opps or audio:
+            print(f"Salvaged {len(opps)} opportunities, {len(audio)} audio from a truncated response")
+            return {"opportunities": opps, "audio": audio,
+                    "pinned_rejected": [], "considered_and_rejected": []}
         return empty
 
 
