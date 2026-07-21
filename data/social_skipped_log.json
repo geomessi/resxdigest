@@ -289,5 +289,77 @@
     "url": "https://www.6sqft.com/where-to-watch-spain-argentina-fifa-world-cup-final-in-nyc/",
     "reason": "The soccer-ball cup margarita is genuinely craveable and visual \u2014 but could not extract a verified Watermark Instagram permalink from the 6sqft article; account_url unverifiable, and the item would be too similar to the Queens Night Market reel / Final Eve post_idea already featured.",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Mimi's Frozen Yogurt NYC",
+    "url": "https://www.edgenyc.com/news/tiktok-viral-things-to-do-in-nyc-right-now/",
+    "reason": "Froyo queue moment already featured (Bloomberg viral froyo story, July 2026) \u2014 on dedup list",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Somssi NYC (Atoboy/Atomix team)",
+    "url": "https://blog.resy.com/the-hit-list/nyc-restaurants/",
+    "reason": "Resy Hit List roundup page \u2014 not a single-subject lead; Somssi article URL already sent in prior run",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "RH London rooftop",
+    "url": "https://www.hot-dinners.com/London-restaurants/Mayfair-Belgravia/rh-london-gallery",
+    "reason": "Already featured as a moment (celeb-packed RH London Mayfair launch, Margot Robbie, Henry Cavill) \u2014 on dedup list",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Langosteria London at The OWO",
+    "url": "https://www.instagram.com/langosteria/",
+    "reason": "Instagram profile already sent in prior run \u2014 deduped URL; and Langosteria moment not genuinely new today",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Maai by Nikita Clapham (MasterChef winner)",
+    "url": "https://www.timeout.com/london/restaurants/the-best-new-restaurants-in-london",
+    "reason": "Source is a roundup page (not a single-subject article or real post permalink); could not drill to a real post within fetch budget",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Tavern / Bar Etna / Ornella roundup",
+    "url": "https://www.hot-dinners.com/Features/Hot-Dinners-recommends/hot-right-now-london-s-hottest-restaurants",
+    "reason": "Top-level URL already sent in prior run \u2014 used the individual venue pages and embedded posts instead",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Zylia Greek/Cypriot Covent Garden",
+    "url": "https://www.hot-dinners.com/London-restaurants/Soho-Fitzrovia-Covent-Garden/zylia-cypriot-greek-taverna",
+    "reason": "Interesting opening but no real post permalink found within fetch budget; scored lower than Chez Rose/Czer/Vesper on desire-fit and stop-scroll for ResX audience",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Ornella Hackney (Lupa sequel, Theo James)",
+    "url": "https://www.hot-dinners.com/London-restaurants/East-London/ornella-hackney",
+    "reason": "Strong opening but no real post permalink retrieved; Chez Rose and Vesper scored higher on momentum and source quality",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "subject": "Caf\u00e9 Clement Strand",
+    "url": "https://thenudge.com/cafe-clement/",
+    "reason": "Caf\u00e9 Clement article URL already sent in prior run \u2014 deduped",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-21",
+    "pinned_input": "",
+    "subject": "Tavern Shoreditch",
+    "url": "https://www.hot-dinners.com/London-restaurants/Shoreditch-Clerkenwell/tavern-shoreditch",
+    "reason": "diversity_cap",
+    "detail": "already have an item from account 'hotdinners' in this digest",
+    "source_type": "researched"
   }
 ]
