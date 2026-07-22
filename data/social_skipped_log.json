@@ -361,5 +361,61 @@
     "reason": "diversity_cap",
     "detail": "already have an item from account 'hotdinners' in this digest",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Mimi's Froyo NYC",
+    "url": "https://www.edgenyc.com/news/tiktok-viral-things-to-do-in-nyc-right-now/",
+    "reason": "Already featured \u2014 'bloomberg viral froyo queue story' is on the already-featured moments list; same venue/moment",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Soraya Marylebone",
+    "url": "https://www.instagram.com/sorayamarylebone/",
+    "reason": "Already sent \u2014 exact URL is on the already-sent URLs list",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Pizza 4P's Greenpoint first US location",
+    "url": "https://www.theinfatuation.com/new-york/guides/new-nyc-restaurants-openings",
+    "reason": "Strong concept but same article URL as two other items already in today's output \u2014 would duplicate the source link and dilute; also less scroll-stopping than Foreigner/Frenchette for ResX audience",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Oberon at New Museum LES",
+    "url": "https://www.theinfatuation.com/new-york/guides/new-nyc-restaurants-openings",
+    "reason": "Interesting but late-night/arts-institution angle is less on-brand for ResX's going-out-tonight desire; same source URL already used",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Treinta Treinta Nolita mezcaleria",
+    "url": "https://www.theinfatuation.com/new-york/guides/new-nyc-restaurants-openings",
+    "reason": "Genuinely cool (La Esquina team, mezcal + coffee, Nolita) but same source URL already used three times today; would surface with fresh permalink on a lower-traffic day",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Miokuru Soho handrolls",
+    "url": "https://www.designmynight.com/london/blog/new-restaurants-london",
+    "reason": "20-seat handroll counter is a great concept but opened July 13 \u2014 already one week old and same source as Kismet; Kismet is hotter/more connected to known creators",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Bread Street Kitchen 22 Bishopsgate",
+    "url": "https://www.designmynight.com/london/blog/new-restaurants-london",
+    "reason": "Gordon Ramsay-adjacent, 59th-floor setting is visually strong but too corporate/tourist for ResX's downtown cool-girl brand; already sent Lucky Cat Ramsay item previously",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-22",
+    "subject": "Bark BBQ Bushwick Instagram account",
+    "url": "https://www.instagram.com/barkbarbecue/",
+    "reason": "Included as account_url in post_idea posts array \u2014 not rejected, listed here for transparency that it was not independently verified via fetch; omitted post_url rather than guess a permalink",
+    "source_type": "researched"
   }
 ]
