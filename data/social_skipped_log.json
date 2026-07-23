@@ -417,5 +417,54 @@
     "url": "https://www.instagram.com/barkbarbecue/",
     "reason": "Included as account_url in post_idea posts array \u2014 not rejected, listed here for transparency that it was not independently verified via fetch; omitted post_url rather than guess a permalink",
     "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "Somssi NYC",
+    "url": "https://blog.resy.com/2026/06/somssi-nyc/",
+    "reason": "URL already in dedup list \u2014 previously sent, cannot reuse",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "TAQ Notting Hill (Taqueria x Jackson Boxer x Yishima)",
+    "url": "https://www.designmynight.com/london/blog/new-restaurants-london",
+    "reason": "Only source found is a roundup/list \u2014 not acceptable as a single-subject lead link per rules; no post permalink retrieved",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "Maai by Nikita, Clapham",
+    "url": "https://www.timeout.com/london/restaurants/the-best-new-restaurants-in-london",
+    "reason": "Source is a roundup list page \u2014 not a single-subject article. No post permalink retrieved. Could not drill down with remaining fetches.",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "Adda East Village NYC (butter chicken experience)",
+    "url": "https://www.timeout.com/newyork/restaurants/100-best-new-york-restaurants",
+    "reason": "Only source is a roundup page \u2014 not acceptable as lead link; no post permalink found within search budget",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "Caf\u00e9 Clement, Strand (Nick Jones hotel, Giles Coren rave)",
+    "url": "https://thenudge.com/cafe-clement/",
+    "reason": "Article URL already in dedup list (thenudge.com/cafe-clement); moment previously featured",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "Zylia Greek/Cypriot taverna, Covent Garden",
+    "url": "https://www.hot-dinners.com/London-restaurants/Soho-Fitzrovia-Covent-Garden/zylia-cypriot-greek-taverna",
+    "reason": "Strong editorial buzz but opened earlier in summer \u2014 momentum already peaked; no fresh post permalink retrieved today to justify inclusion over stronger picks",
+    "source_type": "researched"
+  },
+  {
+    "date": "2026-07-23",
+    "subject": "Cantinera Brockley (Spanish/Mexican, BYOB walk-in)",
+    "url": "https://www.hot-dinners.com/London-restaurants/South-London/cantinera-brockley",
+    "reason": "Genuinely interesting but south London outer neighbourhood, limited audience fit for ResX's core 25-35 going-out crowd; no post permalink retrieved",
+    "source_type": "researched"
   }
 ]
