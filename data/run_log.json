@@ -54,5 +54,12 @@
     "trigger": "scheduled",
     "outcome": "skipped",
     "detail": "already completed today at 2026-07-20T03:26:30.285026+00:00"
+  },
+  {
+    "date": "2026-07-24",
+    "timestamp": "2026-07-24T01:07:44.954649+00:00",
+    "trigger": "manual",
+    "outcome": "failed",
+    "detail": "'str' object has no attribute 'get'"
   }
 ]
