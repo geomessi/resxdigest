@@ -511,5 +511,75 @@
     "headline": "Fable 5 now permanent in Claude Max from July 20",
     "detail": "Anthropic locks Fable 5 into Max and Team Premium at 50% weekly limits; Pro drops to credits-only",
     "so_what": "If any team member is on Claude Pro using Fable 5 heavily, upgrade to Max 5x ($100/mo) now \u2014 the one-time $100 Pro credit will run out fast on coding sessions"
+  },
+  {
+    "key": "https://techcrunch.com/2026/07/22/travis-kalanicks-robotics-company-raises-1-7b-led-by-a16z/",
+    "date": "2026-07-24",
+    "headline": "Atoms (CloudKitchens) raises $1.7B from a16z, Uber",
+    "detail": "Kalanick's ghost kitchen holdco closes $1.7B; Uber re-invests alongside a16z.",
+    "so_what": "Atoms is the rebranded parent of CloudKitchens \u2014 the ghost kitchen infrastructure operator in 110+ cities \u2014 plus Lab37 food robots and a new Bowl Builder automated assembly line being tested in CloudKitchens locations. Uber's participation as an investor reconnects Kalanick's food infrastructure with the delivery giant that just acquired Delivery Hero for $14.8B. The relevant question for ResX: if Uber's delivery stack (now global via Delivery Hero), CloudKitchens' kitchen infrastructure, and Atoms' food automation all tighten into one stack, the operating environment for independent venue operators changes \u2014 and so does the leverage any reservation platform has with those venues. A world where a significant share of restaurant supply runs on Atoms infrastructure and fulfills via Uber Eats is one where the booking layer matters even more as a venue's independent customer relationship tool."
+  },
+  {
+    "key": "https://www.restaurantdive.com/news/wonder-valuation-9-billion-latest-650m-funding/825417/",
+    "date": "2026-07-24",
+    "headline": "Wonder $650M Series D officially closed",
+    "detail": "Round confirmed at $650M, $9B valuation; footprint tripled to 140 locations.",
+    "so_what": "Prior digest flagged the SEC filing for a '$600M pre-IPO round.' This week's confirmed close is materially different: the round exceeded its target, valuation is now public at $9B pre-money, and Wonder simultaneously disclosed it owns Grubhub and Blue Apron alongside its 140-location food hall footprint. Wonder is now capitalized to accelerate both physical locations and its marketplace \u2014 which aggregates hundreds of thousands of restaurant listings nationwide. That marketplace layer is the direct competitive surface for ResX: a platform controlling delivery, dine-in, and meal kit data at scale, pre-IPO, is exactly the kind of aggregator that could offer venues a 'one platform' argument before ResX can establish its own position."
+  },
+  {
+    "key": "https://www.prnewswire.com/news-releases/book-the-restaurant-then-the-room-opentable-reveals-the-2026-top-100-hotel-restaurants-in-america-302825007.html",
+    "date": "2026-07-24",
+    "headline": "OpenTable Concierge moves from profiles to homepage",
+    "detail": "AI dining assistant now live on OpenTable homepage; searches 65,000+ restaurants by natural language, confirmed July 14\u201316.",
+    "so_what": ""
+  },
+  {
+    "key": "https://www.prnewswire.com/apac/news-releases/aiello-partners-with-tablecheck-to-power-ai-driven-restaurant-reservations-302831982.html",
+    "date": "2026-07-24",
+    "headline": "Aiello x TableCheck: AI call agent books tables in 50+ languages",
+    "detail": "ACA now completes phone reservations directly inside TableCheck, 24/7, announced July 23.",
+    "so_what": ""
+  },
+  {
+    "key": "https://calmatters.digitaldemocracy.org/bills/ca_202520260ab1640",
+    "date": "2026-07-24",
+    "headline": "CA scalping bill reaches Senate Appropriations Committee",
+    "detail": "AB 1640 re-referred to Senate Appropriations June 29; floor vote still pending.",
+    "so_what": "This is a status update \u2014 not a new development \u2014 but the legislative clock matters: California's Senate Appropriations Committee cleared the bill June 29 with an 11-0 vote, re-referring it to Appropriations. The California Senate floor vote is now the last hurdle before the bill reaches the Governor. If it passes, California becomes the third major state (after NY and NJ) to ban unauthorized reservation resales, with AG enforcement powers and $1,000-per-violation penalties. The pattern \u2014 NY, NJ, Philly, now CA \u2014 is hardening into a national legislative framework that reshapes what any reservation access layer can legally offer. For ResX: the consent-required model spreading state-by-state closes off grey-market inventory angles that competitors like Appointment Trader V2 are actively trying to exploit via their AI rebuild."
+  },
+  {
+    "key": "https://www.forbes.com/sites/alywalansky/2026/07/18/10-delicious-cocktails-to-enjoy-on-national-tequila-day/",
+    "date": "2026-07-24",
+    "headline": "National Tequila Day: Bar Susanne's Uno Mas + Dynamo Room's Space Oddity",
+    "detail": "Bar Susanne (Domino Park, Williamsburg): Uno Mas \u2014 Altos Tequila, Nixta corn liqueur, Suze, grapefruit cordial, Topo-Chico, chipotle taj\u00edn rim, $22. The Dynamo Room (Penn District): Space Oddity \u2014 tequila, saffron, pandan leaf, lime, $21.95.",
+    "so_what": ""
+  },
+  {
+    "key": "https://londontheinside.com/michelin-dishes-from-7-at-chishuru-as-it-goes-a-la-carte/",
+    "date": "2026-07-24",
+    "headline": "Chishuru Runs Michelin Suya Sessions From \u00a37 Wednesdays",
+    "detail": "Jok\u00e9 Bakare's Fitzrovia tasting-menu spot goes \u00e0 la carte suya street food through Aug 26.",
+    "so_what": ""
+  },
+  {
+    "key": "https://thehackernews.com/2026/07/new-hallusquatting-attack-could-trick.html",
+    "date": "2026-07-24",
+    "headline": "HalluSquatting turns Cursor into botnet installer",
+    "detail": "Attackers pre-register npm packages LLMs statistically hallucinate; agents install silently",
+    "so_what": "Audit every AI-generated package.json addition this week \u2014 never let Cursor or Copilot install an unverified npm package without manual lockfile check"
+  },
+  {
+    "key": "https://ramp.com/router/",
+    "date": "2026-07-24",
+    "headline": "Ramp Router now free: 30% LLM cost cut",
+    "detail": "OpenAI-compatible endpoint routes each call to cheapest qualifying model",
+    "so_what": "Swap ResX's Node API base URL to Ramp Router \u2014 one-line change, 30% immediate cost reduction on all LLM calls"
+  },
+  {
+    "key": "https://cursor.com/blog/agent-swarm-model-economics",
+    "date": "2026-07-24",
+    "headline": "Cursor swarm: model mix cuts cost 8x",
+    "detail": "Opus 4.8 + Composer 2.5 cost $1,339 vs $10,565 for GPT-5.5 alone on same task",
+    "so_what": "For any multi-step agent task in Cursor, set GPT-5.6 Sol only for planning; route subtasks to cheaper models \u2014 saves ~87% per swarm run"
   }
 ]

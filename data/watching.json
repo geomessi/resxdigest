@@ -127,22 +127,6 @@
     "merged_from": []
   },
   {
-    "name": "Coppa Club London Bridge",
-    "date": "opens July 23",
-    "blurb": "Flagship all-day riverside venue with panoramic Thames views between Shard and Tower Bridge.",
-    "so_what": "Prime summer terrace spot, all-day bookings = high ResX volume opportunity.",
-    "city": "LDN",
-    "website": "https://www.coppaclub.co.uk/london-bridge",
-    "instagram_handle": "",
-    "instagram_url": "",
-    "cover_image_post": "",
-    "source_url": "https://www.hot-dinners.com/2026061015119/Gastroblog/Latest-news/coppa-club-london-bridge-restaurant-opening",
-    "category": "watching",
-    "id": "coppa club bridge::LDN",
-    "importance_rank": 4,
-    "merged_from": []
-  },
-  {
     "name": "Treinta Treinta",
     "date": "July 2026",
     "blurb": "All-day mezcaleria and coffee shop in Nolita from the La Esquina team.",
@@ -181,5 +165,35 @@
     "id": "vesper::LDN",
     "importance_rank": 2,
     "merged_from": []
+  },
+  {
+    "name": "Waterhouse",
+    "date": "opens August 6",
+    "blurb": "Gabriel Waterhouse's new 24-cover tasting menu restaurant in a Columbia Road Victorian warehouse.",
+    "city": "LDN",
+    "website": "",
+    "instagram_handle": "",
+    "instagram_url": "",
+    "source_url": "https://www.restaurantonline.co.uk/Article/2026/07/22/duo-behind-the-water-house-project-to-open-new-restaurant-in-east-london/",
+    "category": "watching",
+    "importance_rank": 0,
+    "merged_from": [
+      "waterhouse::LDN"
+    ]
+  },
+  {
+    "name": "Cassette",
+    "date": "opens Autumn 2026",
+    "blurb": "Levan team's Parisian bistro on Covent Garden's Maiden Lane, led by chef Essa Fakhry.",
+    "city": "LDN",
+    "website": "",
+    "instagram_handle": "@cassettelondon",
+    "instagram_url": "https://www.instagram.com/cassettelondon/",
+    "source_url": "https://www.hot-dinners.com/2026071515228/Gastroblog/Latest-news/cassette-restaurant-levan-opening-covent-garden-london",
+    "category": "watching",
+    "importance_rank": 0,
+    "merged_from": [
+      "cassette::LDN"
+    ]
   }
 ]
