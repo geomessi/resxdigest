@@ -33,6 +33,9 @@ LAST_POST_FILE = Path("data/last_social_post.json")
 PINNED_LEADS_FILE = Path("data/social_pinned_leads.json")
 SKIPPED_LOG_FILE = Path("data/social_skipped_log.json")
 TRACKED_RESTAURANTS_FILE = Path("data/social_tracked_restaurants.json")
+# Shared with bot.py (the digest) — one source of truth for food/drink days, so a day added once
+# shows up in BOTH. Shared as DATA, not code; the two bots stay independent modules.
+FOOD_DAYS_FILE = Path("data/food_days.json")
 
 # Scoring now drives RANK ORDER only (not an absolute cutoff). The axes are the taste
 # rubric a good social editor actually uses to decide "should ResX post this today?"
@@ -235,6 +238,36 @@ def safe_link(url: str, label: str) -> str:
     return f"<{url}|{label}>"
 
 
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> datetime.date:
+    """Date of the nth <weekday> in a month (weekday: Mon=0..Sun=6) — for food days that fall on
+    e.g. the 'first Friday of June' rather than a fixed calendar date."""
+    first = datetime.date(year, month, 1)
+    offset = (weekday - first.weekday()) % 7
+    return first + datetime.timedelta(days=offset + 7 * (n - 1))
+
+
+def active_food_day_hints(today: datetime.date, window: int = 7) -> list:
+    """Food/drink days (fixed or movable) within `window` days, from the calendar shared with the
+    digest bot. These are prime social moments — a tequila day, an ice-cream day, a coffee day."""
+    data = load_json(FOOD_DAYS_FILE, {}) or {}
+    hints = []
+    for e in data.get("fixed", []) or []:
+        try:
+            day = datetime.date(today.year, int(e["month"]), int(e["day"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= (day - today).days <= window:
+            hints.append(e.get("hint", ""))
+    for e in data.get("movable", []) or []:
+        try:
+            day = _nth_weekday(today.year, int(e["month"]), int(e["weekday"]), int(e["nth"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= (day - today).days <= window:
+            hints.append(e.get("hint", ""))
+    return [h for h in hints if h]
+
+
 def _salvage_json_array(text: str, key: str) -> list:
     """Best-effort recovery of the complete objects from a JSON array named `key` inside a
     possibly-truncated response — returns as many elements as decode cleanly, ignoring a
@@ -276,6 +309,20 @@ def research_ugc(seen_urls: set, seen_moments: set, seen_songs: set,
         "\n".join(f"- {t.get('name','')} ({t.get('city','')})" for t in tracked)
         if tracked else "none"
     )
+    food_hints = active_food_day_hints(datetime.date.today())
+    if food_hints:
+        food_day_str = (
+            "\n═══════════════════════════════════════════════════════════════════════════\n"
+            "CALENDAR MOMENTS IN THE NEXT WEEK — prime social opportunities\n"
+            "═══════════════════════════════════════════════════════════════════════════\n"
+            + "\n".join(f"- {h}" for h in food_hints)
+            + "\nFor each of these: find the SPECIFIC venues actually doing something for it — a"
+              " special, a collab, a themed menu, a limited drop — and the ACTUAL post. A generic"
+              " mention of the day is worthless. If nothing specific is happening, skip it rather"
+              " than forcing a generic tie-in.\n"
+        )
+    else:
+        food_day_str = ""
 
     prompt = f"""
 You are the social media editor for ResX — a last-minute restaurant reservation app for cool
@@ -325,6 +372,7 @@ WHAT TO HUNT FOR (wide aperture — this is a culture feed, not a trade publicat
 ALWAYS CHECK THESE — ResX's key restaurants (both cities). Every run, look for anything genuinely
 new worth posting at these specific spots (a new dish, a collab, a viral moment, big press today):
 {tracked_str}
+{food_day_str}
 
 ═══════════════════════════════════════════════════════════════════════════
 HOW TO GET THE ACTUAL POST LINK (this is why you have web_fetch)

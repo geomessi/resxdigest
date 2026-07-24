@@ -429,18 +429,12 @@ def log_run_event(today_iso: str, trigger: str, outcome: str, detail: str = ""):
 # ---------------------------------------------------------------------------
 
 CALENDAR = [
+    # Food/drink days are NOT here — they live in the shared data/food_days.json (read by both
+    # bots). This list is holidays/observances only, where a special_header may apply.
     (1,  1,  "New Year's Day",          "🥂 New Year's Edition",    "New Year's is tomorrow — look for NYE dining, top tables for the year, and resolution menus",                       False),
-    (2,  9,  "National Pizza Day",       None,                       "It's National Pizza Day — surface pizza collabs, legendary slices, or pizza cultural moments in NYC/London",         True),
     (2, 14,  "Valentine's Day",          "❤️ Valentine's Edition",   "Valentine's Day is coming — look for romantic dining, prix-fixe specials, and date-night spots",                     False),
-    (2, 22,  "National Margarita Day",   None,                       "National Margarita Day is this week — margarita specials, tequila bars having a moment",                             True),
-    (5,  5,  "Cinco de Mayo",            None,                       "Cinco de Mayo is days away — Mexican restaurant collabs, mezcal/tequila moments worth noting",                       True),
-    (5, 28,  "National Burger Day (US)", None,                       "National Burger Day (US) is this week — burger collabs, smash burger moments, limited edition patties",              True),
-    (6, 19,  "National Martini Day",     None,                       "National Martini Day is this week — martini specials, dirty martini trends, cocktail bar news",                      True),
     (7,  4,  "Fourth of July",           "🇺🇸 Special Edition",      "Fourth of July is days away — look for patriotic dining content, summer entertaining, and July 4th specials in NYC", False),
-    (7, 17,  "National Hot Dog Day",     None,                       "National Hot Dog Day is this week — hot dog collabs, NYC cart culture moments, limited-run dogs",                    True),
-    (7, 24,  "National Tequila Day",     None,                       "National Tequila Day is coming up (Jul 24) — tequila & margarita specials, agave/mezcal cocktails, and tequila bars having a moment in NYC and London", True),
     (8, 25,  "UK Summer Bank Holiday",   None,                       "UK Bank Holiday weekend — London pop-ups, long-weekend dining, and things to do",                                    False),
-    (10,  4, "National Taco Day",        None,                       "National Taco Day is days away — taco collabs, creative fillings, taco pop-ups worth noting",                        True),
     (10, 31, "Halloween",                "🎃 Halloween Edition",     "Halloween is days away — spooky dining events, themed menus, Halloween pop-ups and collabs",                          False),
     (11,  5, "Guy Fawkes Night",         None,                       "Guy Fawkes Night is days away — London fireworks dining, bonfire night restaurant events",                            False),
     (12, 25, "Christmas",                "🎄 Holiday Edition",       "Christmas is approaching — festive menus, holiday dining, Christmas party venues in NYC and London",                  False),
@@ -448,37 +442,12 @@ CALENDAR = [
 ]
 
 
-# Comprehensive food & drink days (added 2026-07-13, "any and all food days"). All fixed-date,
-# all treated as food days (7-day window, no special header). A hint only PRIMES the research
-# toward that day's specials/collabs — it never forces content, and edit_and_rank's relevance
-# filter still gates what actually posts, so a long list here doesn't create noise.
-# (month, day, name, hint)
-EXTRA_FOOD_DAYS = [
-    (1, 15, "National Bagel Day",        "National Bagel Day is coming up — NYC bagel culture, appetizing spreads, the perfect schmear, bagel collabs"),
-    (1, 25, "Burns Night (UK)",          "Burns Night is coming up — Scotch whisky flights, haggis specials, and Burns suppers in London"),
-    (1, 30, "National Croissant Day",    "National Croissant Day is coming up — laminated-pastry moments, viral croissant hybrids, best-bakery buzz"),
-    (2, 18, "National Drink Wine Day",   "National Drink Wine Day is coming up — natural wine bars, by-the-glass moments, wine-focused spots"),
-    (3, 17, "St. Patrick's Day",         "St. Patrick's Day is coming up — Guinness pours, Irish pubs, and going-out plans in NYC and London"),
-    (4,  7, "National Beer Day",         "National Beer Day is coming up — craft taprooms, brewery collabs, beer-hall moments"),
-    (5, 25, "National Wine Day",         "National Wine Day is coming up — wine bars, natural wine, by-the-glass lists worth flagging"),
-    (6, 18, "International Sushi Day",    "International Sushi Day is coming up — omakase counters, hand-roll bars, sushi moments"),
-    (8,  5, "National Oyster Day",        "National Oyster Day is coming up — oyster happy hours, raw bars, oysters-and-natural-wine moments"),
-    (8, 13, "National Prosecco Day",     "National Prosecco Day is coming up — prosecco/spritz specials, bottomless brunch, aperitivo moments"),
-    (8, 16, "National Rum Day",          "National Rum Day is coming up — tiki bars, daiquiris, rum-cocktail moments"),
-    (9, 18, "National Cheeseburger Day", "National Cheeseburger Day is coming up — smash burgers, best-burger debates, burger collabs"),
-    (9, 29, "National Coffee Day",       "National Coffee Day is coming up — specialty cafes, coffee collabs, the best-cortado discourse"),
-    (10, 17, "National Pasta Day",       "National Pasta Day is coming up — pasta-focused Italian spots, fresh-pasta moments, signature dishes"),
-    (11,  1, "World Vegan Day",          "World Vegan Day is coming up — plant-based menus, vegan pop-ups, standout meat-free spots"),
-    (11, 23, "National Espresso Day",    "National Espresso Day is coming up — espresso martinis (the audience's drink), cafe culture, coffee-cocktail moments"),
-]
-
-# Movable food days that fall on the Nth weekday of a month (recomputed each year, never stale).
-# (month, weekday [Mon=0..Sun=6], nth, name, hint)
-MOVABLE_FOOD_DAYS = [
-    (6, 4, 1, "National Donut Day",      "National Donut Day is coming up — viral donut shops, limited-run flavors, donut collabs"),
-    (6, 5, 2, "National Rosé Day",       "National Rosé Day is coming up — rosé all day, rooftop wine moments, by-the-glass rosé"),
-    (7, 6, 3, "National Ice Cream Day",  "National Ice Cream Day is coming up — viral scoop shops, soft-serve moments, ice-cream collabs (peak summer)"),
-]
+# Food & drink days live in a SHARED data file (data/food_days.json) read by BOTH bots, so a day
+# added once shows up in the digest AND the social bot. Deliberately shared as DATA, not code —
+# bot.py and social_bot.py stay independent modules with no cross-imports.
+# A hint only PRIMES research toward that day's specials/collabs; it never forces content, and the
+# relevance filter still gates what actually posts, so a long list doesn't create noise.
+FOOD_DAYS_FILE = Path("data/food_days.json")
 
 
 def _nth_weekday(year: int, month: int, weekday: int, n: int) -> datetime.date:
@@ -487,6 +456,27 @@ def _nth_weekday(year: int, month: int, weekday: int, n: int) -> datetime.date:
     first = datetime.date(year, month, 1)
     offset = (weekday - first.weekday()) % 7
     return first + datetime.timedelta(days=offset + 7 * (n - 1))
+
+
+def active_food_day_hints(today: datetime.date, window: int = 7) -> list:
+    """Hints for every food/drink day (fixed or movable) falling within `window` days of today."""
+    data = load_json(FOOD_DAYS_FILE, {}) or {}
+    hints = []
+    for e in data.get("fixed", []) or []:
+        try:
+            day = datetime.date(today.year, int(e["month"]), int(e["day"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= (day - today).days <= window:
+            hints.append(e.get("hint", ""))
+    for e in data.get("movable", []) or []:
+        try:
+            day = _nth_weekday(today.year, int(e["month"]), int(e["weekday"]), int(e["nth"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= (day - today).days <= window:
+            hints.append(e.get("hint", ""))
+    return [h for h in hints if h]
 
 
 def get_holiday_context(today: datetime.date) -> dict:
@@ -514,18 +504,8 @@ def get_holiday_context(today: datetime.date) -> dict:
                 else:
                     special_header = header_tpl
 
-    # Comprehensive food & drink days (fixed and movable) — 7-day window, hint only.
-    for month, day, name, hint in EXTRA_FOOD_DAYS:
-        try:
-            holiday = datetime.date(today.year, month, day)
-        except ValueError:
-            continue
-        if 0 <= (holiday - today).days <= 7:
-            hints.append(hint)
-    for month, weekday, n, name, hint in MOVABLE_FOOD_DAYS:
-        holiday = _nth_weekday(today.year, month, weekday, n)
-        if 0 <= (holiday - today).days <= 7:
-            hints.append(hint)
+    # Comprehensive food & drink days from the shared calendar — 7-day window, hint only.
+    hints.extend(active_food_day_hints(today))
 
     # Month-long observances
     if today.month == 6:

@@ -1,0 +1,171 @@
+{
+  "fixed": [
+    {
+      "month": 1,
+      "day": 15,
+      "name": "National Bagel Day",
+      "hint": "National Bagel Day is coming up — NYC bagel culture, appetizing spreads, the perfect schmear, bagel collabs"
+    },
+    {
+      "month": 1,
+      "day": 25,
+      "name": "Burns Night (UK)",
+      "hint": "Burns Night is coming up — Scotch whisky flights, haggis specials, and Burns suppers in London"
+    },
+    {
+      "month": 1,
+      "day": 30,
+      "name": "National Croissant Day",
+      "hint": "National Croissant Day is coming up — laminated-pastry moments, viral croissant hybrids, best-bakery buzz"
+    },
+    {
+      "month": 2,
+      "day": 9,
+      "name": "National Pizza Day",
+      "hint": "It's National Pizza Day — surface pizza collabs, legendary slices, or pizza cultural moments in NYC/London"
+    },
+    {
+      "month": 2,
+      "day": 18,
+      "name": "National Drink Wine Day",
+      "hint": "National Drink Wine Day is coming up — natural wine bars, by-the-glass moments, wine-focused spots"
+    },
+    {
+      "month": 2,
+      "day": 22,
+      "name": "National Margarita Day",
+      "hint": "National Margarita Day is this week — margarita specials, tequila bars having a moment"
+    },
+    {
+      "month": 3,
+      "day": 17,
+      "name": "St. Patrick's Day",
+      "hint": "St. Patrick's Day is coming up — Guinness pours, Irish pubs, and going-out plans in NYC and London"
+    },
+    {
+      "month": 4,
+      "day": 7,
+      "name": "National Beer Day",
+      "hint": "National Beer Day is coming up — craft taprooms, brewery collabs, beer-hall moments"
+    },
+    {
+      "month": 5,
+      "day": 5,
+      "name": "Cinco de Mayo",
+      "hint": "Cinco de Mayo is days away — Mexican restaurant collabs, mezcal/tequila moments worth noting"
+    },
+    {
+      "month": 5,
+      "day": 25,
+      "name": "National Wine Day",
+      "hint": "National Wine Day is coming up — wine bars, natural wine, by-the-glass lists worth flagging"
+    },
+    {
+      "month": 5,
+      "day": 28,
+      "name": "National Burger Day (US)",
+      "hint": "National Burger Day (US) is this week — burger collabs, smash burger moments, limited edition patties"
+    },
+    {
+      "month": 6,
+      "day": 18,
+      "name": "International Sushi Day",
+      "hint": "International Sushi Day is coming up — omakase counters, hand-roll bars, sushi moments"
+    },
+    {
+      "month": 6,
+      "day": 19,
+      "name": "National Martini Day",
+      "hint": "National Martini Day is this week — martini specials, dirty martini trends, cocktail bar news"
+    },
+    {
+      "month": 7,
+      "day": 17,
+      "name": "National Hot Dog Day",
+      "hint": "National Hot Dog Day is this week — hot dog collabs, NYC cart culture moments, limited-run dogs"
+    },
+    {
+      "month": 7,
+      "day": 24,
+      "name": "National Tequila Day",
+      "hint": "National Tequila Day is coming up (Jul 24) — tequila & margarita specials, agave/mezcal cocktails, and tequila bars having a moment in NYC and London"
+    },
+    {
+      "month": 8,
+      "day": 5,
+      "name": "National Oyster Day",
+      "hint": "National Oyster Day is coming up — oyster happy hours, raw bars, oysters-and-natural-wine moments"
+    },
+    {
+      "month": 8,
+      "day": 13,
+      "name": "National Prosecco Day",
+      "hint": "National Prosecco Day is coming up — prosecco/spritz specials, bottomless brunch, aperitivo moments"
+    },
+    {
+      "month": 8,
+      "day": 16,
+      "name": "National Rum Day",
+      "hint": "National Rum Day is coming up — tiki bars, daiquiris, rum-cocktail moments"
+    },
+    {
+      "month": 9,
+      "day": 18,
+      "name": "National Cheeseburger Day",
+      "hint": "National Cheeseburger Day is coming up — smash burgers, best-burger debates, burger collabs"
+    },
+    {
+      "month": 9,
+      "day": 29,
+      "name": "National Coffee Day",
+      "hint": "National Coffee Day is coming up — specialty cafes, coffee collabs, the best-cortado discourse"
+    },
+    {
+      "month": 10,
+      "day": 4,
+      "name": "National Taco Day",
+      "hint": "National Taco Day is days away — taco collabs, creative fillings, taco pop-ups worth noting"
+    },
+    {
+      "month": 10,
+      "day": 17,
+      "name": "National Pasta Day",
+      "hint": "National Pasta Day is coming up — pasta-focused Italian spots, fresh-pasta moments, signature dishes"
+    },
+    {
+      "month": 11,
+      "day": 1,
+      "name": "World Vegan Day",
+      "hint": "World Vegan Day is coming up — plant-based menus, vegan pop-ups, standout meat-free spots"
+    },
+    {
+      "month": 11,
+      "day": 23,
+      "name": "National Espresso Day",
+      "hint": "National Espresso Day is coming up — espresso martinis (the audience's drink), cafe culture, coffee-cocktail moments"
+    }
+  ],
+  "movable": [
+    {
+      "month": 6,
+      "weekday": 4,
+      "nth": 1,
+      "name": "National Donut Day",
+      "hint": "National Donut Day is coming up — viral donut shops, limited-run flavors, donut collabs"
+    },
+    {
+      "month": 6,
+      "weekday": 5,
+      "nth": 2,
+      "name": "National Rosé Day",
+      "hint": "National Rosé Day is coming up — rosé all day, rooftop wine moments, by-the-glass rosé"
+    },
+    {
+      "month": 7,
+      "weekday": 6,
+      "nth": 3,
+      "name": "National Ice Cream Day",
+      "hint": "National Ice Cream Day is coming up — viral scoop shops, soft-serve moments, ice-cream collabs (peak summer)"
+    }
+  ]
+}

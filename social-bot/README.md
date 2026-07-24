@@ -51,8 +51,8 @@ data/
 
 ## How scheduling works
 
-- **Cron**: `15 12 * * *` in `social_bot.yml` — every day at 12:15 UTC (8:15am ET).
-- **No watchdog exists for this bot.** The digest bot's 2x/week cadence was confirmed to suffer from GitHub's low-frequency-schedule deprioritization badly enough to need `watchdog.yml`; this bot's daily cadence is frequent enough that the same problem hasn't been severe enough to require one *so far* — but the underlying GitHub behavior is the same, so it's not architecturally immune (see Future Improvements).
+- **Cron**: `15 12 * * 2,4` in `social_bot.yml` — **Tuesdays and Thursdays** at 12:15 UTC (8:15am ET). (Was daily until 2026-07-21; content/behavior is unchanged, just the cadence.)
+- **No watchdog exists for this bot.** The digest bot needed `watchdog.yml` because GitHub deprioritizes low-frequency schedules; now that this bot is also on a 2x/week cadence it is exposed to the same behavior, and a failed run is silent (no post, red X in Actions only) — worth adding a watchdog (see Future Improvements).
 - **Manual trigger**: `workflow_dispatch` with `force_post` and `dry_run` boolean inputs.
 
 ## How to run locally

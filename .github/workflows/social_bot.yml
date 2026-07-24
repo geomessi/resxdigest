@@ -2,8 +2,8 @@ name: ResX Social Bot
 
 on:
   schedule:
-    # Daily at 8:15am ET (12:15 UTC during EDT, UTC-4)
-    - cron: "15 12 * * *"
+    # Tuesdays and Thursdays at 8:15am ET (12:15 UTC during EDT, UTC-4)
+    - cron: "15 12 * * 2,4"
   workflow_dispatch: # allow manual trigger from GitHub UI
     inputs:
       force_post:
